@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+
+<html>
+ <head>
+  <meta charset="UTF-8" />
+  <title>OrgChart</title>
+  <link rel="shortcut icon" type="image/x-icon" href="misc/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ </head>
+
+ <body>
+  <!----------------   ORG CHART NON ESSENTIAL CONTENT ------------>
+  <script src="build/vendor/html2canvas.js"></script>
+  <script src="build/vendor/jspdf.umd.min.js"></script>
+  <link
+   href="build/simptip.min.css"
+   rel="stylesheet"
+  />
+
+  <style>
+   [data-tooltip]:focus:after {
+    display: none;
+    border-bottom-color: none !important;
+   }
+
+   [data-tooltip]:focus:before {
+    display: none;
+    border-bottom-color: none !important;
+   }
+
+   [data-tooltip]:after {
+    height: auto !important;
+    padding: 11px 11px 11px 11px !important;
+    content: attr(data-tooltip);
+    white-space: pre;
+    line-height: 16px !important;
+    text-align: left !important;
+   }
+  </style>
+
+  <link
+   href="build/app.css"
+   rel="stylesheet"
+  />
+
+  <div class="toolbar">
+   <div class="toolbar__brand">
+    <i class="fas fa-sitemap"></i>
+    Organograma
+   </div>
+
+   <label class="file-upload">
+    <span class="file-upload__label">
+     <i class="fas fa-file-csv"></i>
+     Carregar CSV
+    </span>
+    <input
+     type="file"
+     id="csv-input"
+     accept=".csv,text/csv"
+     title="Selecione um arquivo CSV"
+    />
+   </label>
+
+   <div class="toolbar__divider"></div>
+
+   <div class="toolbar__group">
+    <button class="btn" onclick="chart.fit()" title="Ajustar à tela">
+     <i class="fas fa-expand"></i> Fit
+    </button>
+    <button class="btn" onclick="chart.fullscreen()" title="Tela cheia">
+     <i class="fas fa-arrows-alt"></i> Full
+    </button>
+    <button
+     class="btn"
+     onclick='chart.layout(["right","bottom","left","top"][index++%4]).render().fit()'
+     title="Trocar layout"
+    >
+     <i class="fas fa-exchange-alt"></i> Layout
+    </button>
+   </div>
+
+   <div class="toolbar__group">
+    <button class="btn" onclick="chart.expandAll()" title="Expandir tudo">
+     <i class="fas fa-plus-circle"></i> Expand All
+    </button>
+    <button class="btn" onclick="chart.collapseAll()" title="Recolher tudo">
+     <i class="fas fa-minus-circle"></i> Collapse All
+    </button>
+   </div>
+
+   <div class="toolbar__divider"></div>
+
+   <div class="toolbar__group">
+    <button
+     class="btn"
+     onclick="chart.exportImg()"
+     title="Exportar PNG do que está visível"
+    >
+     <i class="fas fa-image"></i> PNG
+    </button>
+    <button
+     class="btn"
+     onclick="chart.exportImg({full:true})"
+     title="Exportar PNG do grafo completo"
+    >
+     <i class="far fa-images"></i> PNG Full
+    </button>
+    <button class="btn" onclick="chart.exportSvg()" title="Exportar SVG">
+     <i class="fas fa-code"></i> SVG
+    </button>
+    <button class="btn" onclick="downloadPdf()" title="Exportar PDF">
+     <i class="fas fa-file-pdf"></i> PDF
+    </button>
+   </div>
+
+   <div class="toolbar__divider"></div>
+
+   <div class="toolbar__group">
+    <button
+     class="btn"
+     onclick='chart.setCentered("134").render()'
+     title="Centralizar nó"
+    >
+     <i class="fas fa-crosshairs"></i> Center
+    </button>
+    <button
+     class="btn"
+     onclick='chart.setHighlighted("134").render()'
+     title="Destacar nó"
+    >
+     <i class="fas fa-highlighter"></i> Highlight
+    </button>
+    <button
+     class="btn"
+     onclick='chart.setUpToTheRootHighlighted("134").render()'
+     title="Destacar caminho até a raiz"
+    >
+     <i class="fas fa-arrow-up"></i> To Root
+    </button>
+    <button
+     class="btn"
+     onclick="chart.clearHighlighting().render()"
+     title="Limpar destaques"
+    >
+     <i class="fas fa-eraser"></i> Clear
+    </button>
+   </div>
+
+   <div class="toolbar__group">
+    <button
+     class="btn btn--primary"
+     onclick='chart.addNode({id:"root-child-"+Date.now(),parentId:"100",name:"Novo",lastName:"Colaborador",position:"Cargo",department_name:"Equipe",_centered:true}).render()'
+     title="Adicionar nó"
+    >
+     <i class="fas fa-user-plus"></i> Add Node
+    </button>
+    <button
+     class="btn btn--danger"
+     onclick='chart.removeNode("120").render()'
+     title="Remover nó #120"
+    >
+     <i class="fas fa-user-minus"></i> Remove
+    </button>
+   </div>
+  </div>
+
+  <div class="status-bar">
+   <span class="status-bar__dot"></span>
+   <span id="status-msg">Pronto • 107 funcionários carregados</span>
+  </div>
+
+  <div class="chart-wrapper">
+   <div class="chart-container"></div>
+  </div>
+
+  <div class="drop-overlay" id="drop-overlay">
+   <div class="drop-overlay__content">
+    <i class="fas fa-cloud-upload-alt"></i>
+    Solte o arquivo CSV aqui
+   </div>
+  </div>
+
+  <a href="https://github.com/bumbeishvili/d3-organization-chart">
+   <img
+    style="position: fixed; top: 0; right: 0; border: 0; z-index: 2"
+    width="149"
+    height="149"
+    src="https://bumbeishvili.github.io/d3-tooltip/forkme.png"
+    alt="Fork me on GitHub"
+   />
+  </a>
+
+  <!----------------  ORG CHART ESSENTIAL CONTENT ---------------->
+
+  <script src="build/d3.v7.min.js"></script>
+  <script src="build/d3-org-chart.js"></script>
+  <script src="build/d3-flextree.js"></script>
+
+  <script>
+   var index = 0;
+   var chart;
+   var currentData = [];
+   d3.csv("misc/data.csv").then((dataFlattened) => {
+    currentData = dataFlattened;
+
+    chart = new d3.OrgChart()
+     .container(".chart-container")
+     .pagingStep((d) => 5)
+      .minPagingVisibleNodes((d) => 3)
+     .data(dataFlattened)
+     .nodeWidth((d) => 260)
+     .nodeHeight((d) => 110)
+     .childrenMargin((d) => 50)
+     .compactMarginBetween((d) => 25)
+     .compactMarginPair((d) => 50)
+     .nodeContent((d) => `
+      <div style="width:240px;height:90px;padding:8px 12px;box-sizing:border-box;
+                  background:${d.data._upToTheRootHighlighted ? '#FFD54F' : (d.data._highlighted ? '#FFF59D' : '#fff')};
+                  border:2px solid ${d.data._upToTheRootHighlighted ? '#F57F17' : (d.data._highlighted ? '#FBC02D' : '#1565C0')};
+                  border-radius:10px;
+                  display:flex;align-items:center;gap:12px;
+                  box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                  font-family:'Inter','Helvetica',sans-serif;">
+        <img src="${d.data.image || ''}" onerror="this.style.display='none'"
+             style="width:54px;height:54px;border-radius:50%;object-fit:cover;
+                    border:2px solid #1565C0;flex-shrink:0;background:#E3F2FD;"/>
+        <div style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:#1565C0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${d.data.name} ${d.data.lastName}
+          </div>
+          <div style="font-size:12px;color:#424242;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">
+            ${d.data.position || ''}
+          </div>
+          <div style="font-size:11px;color:#757575;margin-top:4px;
+                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <i class="fas fa-building" style="color:#1565C0;"></i>
+            ${d.data.department_name || ''}
+          </div>
+        </div>
+      </div>
+     `)
+     // .scaleExtent([1,1])
+     // .svgHeight(window.innerHeight)
+     // .nodeWidth((d3Node) => {
+     //     return 200;
+     //     let i = 0;
+     //     if (d3Node.parent) { i = d3Node.parent.children.indexOf(d3Node); }
+     //     if (i && i == d3Node.parent.children.length - 1) { return 600; }
+     //     return (!i || i == d3Node.parent.children.length - 1) ? 300 : 100
+     // })
+     // .nodeHeight((d3Node) => {
+     //     return 100;
+     //     let i = 0;
+     //     if (d3Node.parent) { i = d3Node.parent.children.indexOf(d3Node); }
+     //     if (i && i == d3Node.parent.children.length - 1) { return 300; }
+     //     return (!i || i == d3Node.parent.children.length - 1) ? 200 : 100
+     // })
+     // .siblingsMargin(d3Node => 0)
+     // .childrenMargin(d3Node => 50)
+     // .neighbourMargin((n1, n2) => 50)
+     // .compactMarginPair(d3Node => 70)
+     // .compactMarginBetween(d3Node => 30)
+     // .setActiveNodeCentered(true)
+     // .layout(new URLSearchParams(new URL(document.location.href).search).get('layout') || "top")
+     // .onNodeClick(d => console.log(d + ' node clicked'))
+     // .linkUpdate(function (d3Node, i, arr) {
+     //     const link = this;
+     //     d3.select(link)
+     //         .attr('stroke-dasharray', !i ? '2 2' : 'none')
+     //         .attr('stroke-width', 3)
+     // })
+     // .nodeUpdate(function (data, i, arr) {
+     //     d3.select(this).on('click.node', (event, d, i) => {
+     //         console.log(d.nodeId + ' node clicked')
+     //     })
+     // })
+     // .connections(
+     //     [
+     //         { id: 1, from: "O-6067", to: "O-6068", label: "Directly Reports To" },
+     //         { id: 2, from: "O-6070", to: "O-6066", label: "Reports To" },
+     //         { id: 3, from: "O-6088", to: "O-6069", label: "They were coworkers once" },
+     //         { id: 3, from: "O-6164", to: "O-6070", label: "Possible conflicts of interest" }
+     //     ],
+     // )
+     //                     .nodeContent(function (d, i, arr, state) {
+
+     //                         return `
+     //                            <div style="padding:0px">
+     // <!--
+     //                             ${state.layout == 'top' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-left:${-(d.flexCompactDim[0] / 2 - d.width) / 2 + state.compactMarginPair(d) / 4}px;width:${d.flexCompactDim[0]}px;height:${d.flexCompactDim[1]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
+     //                             ${state.layout == 'bottom' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-top:${-d.flexCompactDim[1] + d.height}px;margin-left:${-(d.flexCompactDim[0] / 2 - d.width) / 2 + state.compactMarginPair(d) / 4}px;width:${d.flexCompactDim[0]}px;height:${d.flexCompactDim[1]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
+     //                             ${state.layout == 'left' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-top:${-(d.flexCompactDim[0]/2-d.height)/2+ state.compactMarginPair(d) / 4}px;margin-left:${0}px;width:${d.flexCompactDim[1]}px;height:${d.flexCompactDim[0]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
+     //                             ${state.layout == 'right' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5; margin-top:${-(d.flexCompactDim[0]/2-d.height)/2+ state.compactMarginPair(d) / 4}px;margin-left:${d.width-d.flexCompactDim[1]}px;width:${d.flexCompactDim[1]}px;height:${d.flexCompactDim[0]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
+     //                         -->
+     //                              <img src="${d.data.imageUrl}"  style="border-radius:100px;width:60px;height:60px;" />
+     //                              ID: ${d.data.id} <br>
+     //                              Children Direct:${d.data._directSubordinates}<br>
+     //                              Children Total:${d.data._totalSubordinates}
+     //                             </div>
+     //                         `;
+     //                     })
+
+     .onNodeClick((d) => console.log("ok"))
+     //  .layout('right')
+     .compactMarginBetween((d) => 35)
+     .compactMarginPair((d) => 30)
+     .neighbourMargin((a, b) => 20);
+
+    // .buttonContent(({ node, state }) => {
+    //     return `<div style="color:#716E7B;border-radius:5px;padding:3px;font-size:10px;margin:auto auto;background-color:white;border: 1px solid #E4E2E9"> <span style="font-size:9px">${node.children ? `<i class="fas fa-angle-up"></i>` : `<i class="fas fa-angle-down"></i>`}</span> ${node.data._directSubordinates}  </div>`
+    // })
+    // .linkUpdate(function (d, i, arr) {
+    //     d3.select(this)
+    //         .attr("stroke", d => d.data._upToTheRootHighlighted ? '#152785' : '#E4E2E9')
+    //         .attr("stroke-width", d => d.data._upToTheRootHighlighted ? 5 : 1)
+
+    //     if (d.data._upToTheRootHighlighted) {
+    //         d3.select(this).raise()
+    //     }
+    // })
+    //  .nodeContent(function (d, i, arr, state) {
+    //   const color = "#FFFFFF";
+    //   const imageDiffVert = 25 + 2;
+    //   return `
+    //                 <div style='width:${
+    //                  d.width
+    //                 }px;height:${d.height}px;padding-top:${imageDiffVert - 2}px;padding-left:1px;padding-right:1px'>
+    //                     <div style="font-family: 'Inter', sans-serif;background-color:${color};  margin-left:-1px;width:${d.width - 2}px;height:${d.height - imageDiffVert}px;border-radius:10px;border: 1px solid #E4E2E9">
+    //                         <div style="display:flex;justify-content:flex-end;margin-top:5px;margin-right:5px">#${
+    //                          d.data.id
+    //                         }</div>
+    //                         <div style="background-color:${color};margin-top:${-imageDiffVert - 20}px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
+    //                         <div style="margin-top:${
+    //                          -imageDiffVert - 20
+    //                         }px;">   <img src=" ${d.data.image}" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
+    //                         <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:10px">  ${
+    //                          d.data.name
+    //                         } </div>
+    //                         <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
+    //                          d.data.position
+    //                         } </div>
+
+    //                     </div>
+    //                 </div>
+    //                         `;
+    //  });
+
+    chart.layoutBindings(
+     (() => {
+      const layouts = chart.layoutBindings();
+      layouts.top.linkY = (node) => node.y + 0;
+      layouts.top.linkCompactYStart = (node) => node.y + node.height / 2 + 15;
+      return layouts;
+     })()
+    );
+
+    chart.render();
+   });
+
+    function downloadPdf() {
+     chart.exportImg({
+      save: false,
+      onLoad: (base64) => {
+      const pdf = new jspdf.jsPDF();
+      const image = new Image();
+      image.src = base64;
+      image.onload = () => {
+       pdf.addImage(image, "JPEG", 5, 5, 595 / 3, (image.height / image.width) * 595 / 3);
+       pdf.save("organograma.pdf");
+      };
+      },
+     });
+    }
+
+    function loadCsvFile(file) {
+     if (!file || !/\.csv$/i.test(file.name)) {
+      setStatus("Selecione um arquivo .csv válido", true);
+      return;
+     }
+
+     const reader = new FileReader();
+     reader.onload = (event) => {
+      try {
+      const rows = d3.csvParse(event.target.result);
+      const validRows = rows.filter((row) => row.id && row.name);
+      if (!validRows.length) {
+       throw new Error("O CSV precisa conter as colunas id e name");
+      }
+      currentData = validRows;
+      chart.data(currentData).render().fit();
+      setStatus(`${validRows.length} funcionários carregados de ${file.name}`);
+      } catch (error) {
+      setStatus(error.message || "Não foi possível ler o CSV", true);
+      }
+     };
+     reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
+     reader.readAsText(file, "UTF-8");
+    }
+
+    function setStatus(message, isError) {
+     const status = document.getElementById("status-msg");
+     if (status) {
+      status.textContent = message;
+      status.previousElementSibling.style.background = isError ? "#ef4444" : "#10b981";
+     }
+    }
+
+    document.getElementById("csv-input").addEventListener("change", (event) => {
+     loadCsvFile(event.target.files[0]);
+     event.target.value = "";
+    });
+
+    const dropOverlay = document.getElementById("drop-overlay");
+    let dragDepth = 0;
+    document.addEventListener("dragenter", (event) => {
+     event.preventDefault();
+     dragDepth += 1;
+     dropOverlay.classList.add("active");
+    });
+    document.addEventListener("dragover", (event) => event.preventDefault());
+    document.addEventListener("dragleave", (event) => {
+     event.preventDefault();
+     dragDepth -= 1;
+     if (dragDepth <= 0) {
+      dragDepth = 0;
+      dropOverlay.classList.remove("active");
+     }
+    });
+    document.addEventListener("drop", (event) => {
+     event.preventDefault();
+     dragDepth = 0;
+     dropOverlay.classList.remove("active");
+     loadCsvFile(event.dataTransfer.files[0]);
+    });
+  </script>
+
+  <link
+   href="build/inter.css"
+   rel="stylesheet"
+  />
+  <link
+   href="build/fontawesome.min.css?v=2"
+   rel="stylesheet"
+  />
+  <style></style>
+ </body>
+</html>

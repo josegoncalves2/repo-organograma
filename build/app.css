@@ -1,0 +1,237 @@
+/* ===== app.css - Organograma bumbeishvili/org-chart ===== */
+
+* { box-sizing: border-box; }
+
+html, body {
+   margin: 0;
+   padding: 0;
+   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+   background: linear-gradient(135deg, #f5f7fa 0%, #e9eef5 100%);
+   color: #1a202c;
+   min-height: 100vh;
+}
+
+/* ===== Toolbar ===== */
+.toolbar {
+   position: sticky;
+   top: 0;
+   z-index: 100;
+   background: rgba(255, 255, 255, 0.92);
+   backdrop-filter: blur(10px);
+   -webkit-backdrop-filter: blur(10px);
+   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+   padding: 14px 24px;
+   display: flex;
+   align-items: center;
+   gap: 18px;
+   flex-wrap: wrap;
+}
+
+.toolbar__brand {
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   font-weight: 700;
+   font-size: 17px;
+   color: #1565C0;
+   margin-right: 12px;
+   letter-spacing: -0.3px;
+}
+
+.toolbar__brand i {
+   font-size: 20px;
+   color: #1565C0;
+}
+
+.toolbar__group {
+   display: flex;
+   align-items: center;
+   gap: 4px;
+   padding: 4px;
+   background: #f1f5f9;
+   border-radius: 10px;
+}
+
+.toolbar__divider {
+   width: 1px;
+   height: 28px;
+   background: #cbd5e1;
+   margin: 0 4px;
+}
+
+.btn {
+   appearance: none;
+   border: none;
+   background: transparent;
+   color: #334155;
+   font-family: inherit;
+   font-size: 13px;
+   font-weight: 500;
+   padding: 7px 12px;
+   border-radius: 7px;
+   cursor: pointer;
+   transition: all 0.15s ease;
+   display: inline-flex;
+   align-items: center;
+   gap: 6px;
+   white-space: nowrap;
+}
+
+.btn:hover {
+   background: #fff;
+   color: #1565C0;
+   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn:active {
+   transform: translateY(1px);
+}
+
+.btn i {
+   font-size: 12px;
+   opacity: 0.85;
+}
+
+.btn--primary {
+   background: #1565C0;
+   color: #fff;
+   padding: 8px 16px;
+}
+
+.btn--primary:hover {
+   background: #0d47a1;
+   color: #fff;
+   box-shadow: 0 2px 8px rgba(21, 101, 192, 0.35);
+}
+
+.btn--danger {
+   color: #c62828;
+}
+
+.btn--danger:hover {
+   background: #ffebee;
+   color: #b71c1c;
+}
+
+/* ===== File Upload ===== */
+.file-upload {
+   position: relative;
+   display: inline-block;
+}
+
+.file-upload input[type="file"] {
+   position: absolute;
+   inset: 0;
+   opacity: 0;
+   cursor: pointer;
+}
+
+.file-upload__label {
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+   padding: 8px 16px;
+   background: linear-gradient(135deg, #1565C0, #1976D2);
+   color: #fff;
+   border-radius: 8px;
+   font-size: 13px;
+   font-weight: 600;
+   cursor: pointer;
+   transition: all 0.2s ease;
+   box-shadow: 0 2px 6px rgba(21, 101, 192, 0.25);
+}
+
+.file-upload__label:hover {
+   background: linear-gradient(135deg, #0d47a1, #1565C0);
+   box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4);
+   transform: translateY(-1px);
+}
+
+.file-upload__label i {
+   font-size: 14px;
+}
+
+/* ===== Chart container ===== */
+.chart-wrapper {
+   max-width: 1600px;
+   margin: 24px auto;
+   padding: 0 24px;
+}
+
+.chart-container {
+   background: #fff;
+   border-radius: 16px;
+   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+   padding: 20px;
+   min-height: 1100px;
+   border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* ===== Empty / Status messages ===== */
+.status-bar {
+   max-width: 1600px;
+   margin: 0 auto 8px;
+   padding: 8px 32px;
+   font-size: 12px;
+   color: #64748b;
+   display: flex;
+   align-items: center;
+   gap: 8px;
+}
+
+.status-bar__dot {
+   width: 8px;
+   height: 8px;
+   border-radius: 50%;
+   background: #10b981;
+   box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+/* ===== Drop overlay ===== */
+.drop-overlay {
+   position: fixed;
+   inset: 0;
+   background: rgba(21, 101, 192, 0.92);
+   z-index: 9999;
+   display: none;
+   align-items: center;
+   justify-content: center;
+   pointer-events: none;
+   color: #fff;
+   font-size: 24px;
+   font-weight: 700;
+   text-align: center;
+   backdrop-filter: blur(4px);
+}
+
+.drop-overlay.active {
+   display: flex;
+}
+
+.drop-overlay__content {
+   padding: 40px 60px;
+   border: 4px dashed rgba(255, 255, 255, 0.5);
+   border-radius: 20px;
+}
+
+.drop-overlay i {
+   font-size: 64px;
+   display: block;
+   margin-bottom: 16px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+   .toolbar {
+      padding: 12px 14px;
+      gap: 10px;
+   }
+   .toolbar__brand {
+      font-size: 15px;
+      width: 100%;
+   }
+   .chart-wrapper {
+      padding: 0 12px;
+   }
+}

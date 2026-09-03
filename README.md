@@ -55,3 +55,4 @@ id,parentId,name,lastName,position,department_name,image
 demais colunas alimentam o card. O CSV é processado no navegador e não é
 enviado para nenhum servidor.
 # repo-organograma
+# repo-organograma

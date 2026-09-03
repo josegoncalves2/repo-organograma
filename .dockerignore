@@ -1,0 +1,15 @@
+# .dockerignore
+.git
+.github
+node_modules
+test
+*.md
+*.bak
+LICENSE*
+CODE_OF_CONDUCT*
+.gitignore
+.npmignore
+.dockerignore
+docker-compose.yml
+README.md
+Dockerfile
