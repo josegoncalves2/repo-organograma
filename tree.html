@@ -62,6 +62,11 @@
     />
    </label>
 
+    <label class="theme-picker">
+     <i class="fas fa-palette"></i>
+     <select id="theme-select" title="Tema visual"></select>
+    </label>
+
    <div class="toolbar__divider"></div>
 
    <div class="toolbar__group">
@@ -181,16 +186,6 @@
    </div>
   </div>
 
-  <a href="https://github.com/bumbeishvili/d3-organization-chart">
-   <img
-    style="position: fixed; top: 0; right: 0; border: 0; z-index: 2"
-    width="149"
-    height="149"
-    src="https://bumbeishvili.github.io/d3-tooltip/forkme.png"
-    alt="Fork me on GitHub"
-   />
-  </a>
-
   <!----------------  ORG CHART ESSENTIAL CONTENT ---------------->
 
   <script src="build/d3.v7.min.js"></script>
@@ -201,6 +196,79 @@
    var index = 0;
    var chart;
    var currentData = [];
+  var currentTheme = "classic";
+  var themes = [
+   ["classic", "Classic", "#1565C0", "#FFFFFF", "#1565C0", "#475569"],
+   ["sky", "Sky", "#29B6D1", "#F5FAFC", "#0F4C81", "#475569"],
+   ["circles", "Circles", "#00A6A6", "#FFFFFF", "#00695C", "#37474F"],
+   ["oval", "Oval", "#F59E0B", "#FFFBEB", "#92400E", "#78350F"],
+   ["clean", "Clean", "#64748B", "#FFFFFF", "#0F172A", "#64748B"],
+   ["futuristic", "Futuristic", "#22D3EE", "#071827", "#67E8F9", "#A5F3FC"],
+  ["previous", "Previous version", "#2FA8C5", "#2FA8C5", "#FFFFFF", "#FFFFFF"]
+  ];
+  var modelNames = [
+   "Simple Data", "Custom Content", "Nested Data", "Online JSON Data", "CSV Data", "Styled Tree", "Expand Node", "Collapse Node", "Add Node", "Remove Node", "Fit Screen", "Change Layout", "Center Node", "Highlight Node", "Fullscreen", "Zoom In/Out", "Export", "Expand/Collapse All", "Multi Node Connections", "Paging", "Horizontal View", "Active Node Centering", "Interactive Node", "Searching", "Scrollable Content", "Data Driven Size", "Dropdown", "Multi Root", "Minimap", "Drag and Drop", "Avatar Rail", "Metric Board", "Executive Card", "Department Bands", "Timeline Tree", "Status Cards", "Profile Tiles", "Hierarchy Pills", "Compact Matrix", "Focus Path", "Team Lanes", "Role Badges", "Command Center", "Org Map", "People Grid"
+  ];
+  modelNames.forEach((name, index) => {
+   const palettes = [
+    ["#2563EB", "#FFFFFF", "#1E3A8A", "#475569"],
+    ["#0D9488", "#F0FDFA", "#134E4A", "#365314"],
+    ["#DB2777", "#FFF1F2", "#9D174D", "#831843"],
+    ["#7C3AED", "#F5F3FF", "#5B21B6", "#4C1D95"],
+    ["#D97706", "#FFFBEB", "#92400E", "#78350F"]
+   ][index % 5];
+   themes.push([`model-${index + 8}`, name, palettes[0], palettes[1], palettes[2], palettes[3], index + 1]);
+  });
+  function buildThemeMenu() {
+   const select = document.getElementById("theme-select");
+   themes.forEach((theme, index) => {
+    const option = document.createElement("option");
+    option.value = theme[0];
+    option.textContent = `${String(index + 1).padStart(2, "0")} · ${theme[1]}`;
+    select.appendChild(option);
+   });
+  }
+  buildThemeMenu();
+   function activeTheme() {
+    const theme = themes.find((item) => item[0] === currentTheme) || themes[0];
+    return { accent: theme[2], background: theme[3], text: theme[4], muted: theme[5], variant: theme[6] || 0 };
+   }
+   function themedNodeContent(d) {
+    const theme = activeTheme();
+    const highlighted = d.data._upToTheRootHighlighted || d.data._highlighted;
+    const variant = theme.variant;
+    const name = `${d.data.name} ${d.data.lastName || ''}`.trim();
+    if (variant) {
+     const kind = variant % 10;
+     const layouts = [
+      `display:flex;align-items:center;gap:12px`,
+      `display:flex;flex-direction:column;align-items:center;justify-content:center`,
+      `display:grid;grid-template-columns:58px 1fr;align-items:center;gap:10px`,
+      `display:flex;align-items:flex-start;gap:8px;border-left:8px solid ${theme.accent}`,
+      `display:flex;flex-direction:column;justify-content:space-between`,
+      `display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center`,
+      `display:flex;align-items:center;gap:8px;border-radius:28px`,
+      `display:flex;flex-direction:column;align-items:flex-start;justify-content:center`,
+      `display:flex;align-items:center;gap:6px`,
+      `display:grid;grid-template-columns:46px 1fr;align-items:center;gap:8px`
+     ][kind];
+     const radius = kind === 1 ? "50%" : (kind === 6 ? "28px" : `${4 + (variant % 5)}px`);
+     const image = `<img src="${d.data.image || ''}" onerror="this.style.display='none'" style="width:${kind === 1 ? 54 : 46}px;height:${kind === 1 ? 54 : 46}px;border-radius:50%;object-fit:cover;border:3px solid ${theme.accent};background:#CBD5E1;flex-shrink:0;"/>`;
+     const metrics = `<small style="display:flex;justify-content:space-between;color:${theme.muted};font-size:9px;margin-top:6px;"><span>${d.data._directSubordinates || 0} direct</span><span>${d.data._totalSubordinates || 0} total</span></small>`;
+     return `<div style="width:240px;height:90px;padding:${kind === 1 ? 8 : 10}px;box-sizing:border-box;background:${theme.background};border:2px solid ${highlighted ? '#F59E0B' : theme.accent};border-radius:${radius};box-shadow:0 2px 7px rgba(15,23,42,.16);${layouts};font-family:'Inter','Helvetica',sans-serif;color:${theme.text};overflow:hidden;">
+       ${image}<div style="min-width:0;flex:1;width:${kind === 1 ? 'auto' : '100%'};"><div style="font-size:${kind === 5 ? 11 : 13}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div><div style="font-size:10px;color:${theme.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.data.position || ''}</div><div style="font-size:9px;color:${theme.accent};margin-top:3px;">${kind === 7 ? 'TEAM ' : ''}${d.data.department_name || 'Organization'}</div>${kind === 4 || kind === 5 || kind === 8 ? metrics : ''}</div>
+      ${kind === 2 ? `<span style="position:absolute;right:8px;top:6px;font-size:9px;color:${theme.muted};">#${d.data.id}</span>` : ''}
+     </div>`;
+    }
+    return `<div style="width:240px;height:90px;padding:8px 12px;box-sizing:border-box;background:${highlighted ? '#FEF3C7' : theme.background};border:2px solid ${highlighted ? '#F59E0B' : theme.accent};border-radius:10px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 6px rgba(0,0,0,.15);font-family:'Inter','Helvetica',sans-serif;">
+      <img src="${d.data.image || ''}" onerror="this.style.display='none'" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid ${theme.accent};flex-shrink:0;background:#E3F2FD;"/>
+      <div style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-width:0;">
+       <div style="font-weight:700;font-size:14px;color:${theme.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.data.name} ${d.data.lastName || ''}</div>
+       <div style="font-size:12px;color:${theme.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${d.data.position || ''}</div>
+       <div style="font-size:11px;color:${theme.muted};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="fas fa-building" style="color:${theme.accent};"></i> ${d.data.department_name || ''}</div>
+      </div>
+     </div>`;
+   }
    d3.csv("misc/data.csv").then((dataFlattened) => {
     currentData = dataFlattened;
 
@@ -214,32 +282,7 @@
      .childrenMargin((d) => 50)
      .compactMarginBetween((d) => 25)
      .compactMarginPair((d) => 50)
-     .nodeContent((d) => `
-      <div style="width:240px;height:90px;padding:8px 12px;box-sizing:border-box;
-                  background:${d.data._upToTheRootHighlighted ? '#FFD54F' : (d.data._highlighted ? '#FFF59D' : '#fff')};
-                  border:2px solid ${d.data._upToTheRootHighlighted ? '#F57F17' : (d.data._highlighted ? '#FBC02D' : '#1565C0')};
-                  border-radius:10px;
-                  display:flex;align-items:center;gap:12px;
-                  box-shadow:0 2px 6px rgba(0,0,0,0.15);
-                  font-family:'Inter','Helvetica',sans-serif;">
-        <img src="${d.data.image || ''}" onerror="this.style.display='none'"
-             style="width:54px;height:54px;border-radius:50%;object-fit:cover;
-                    border:2px solid #1565C0;flex-shrink:0;background:#E3F2FD;"/>
-        <div style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:14px;color:#1565C0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            ${d.data.name} ${d.data.lastName}
-          </div>
-          <div style="font-size:12px;color:#424242;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">
-            ${d.data.position || ''}
-          </div>
-          <div style="font-size:11px;color:#757575;margin-top:4px;
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            <i class="fas fa-building" style="color:#1565C0;"></i>
-            ${d.data.department_name || ''}
-          </div>
-        </div>
-      </div>
-     `)
+    .nodeContent(themedNodeContent)
      // .scaleExtent([1,1])
      // .svgHeight(window.innerHeight)
      // .nodeWidth((d3Node) => {
@@ -409,6 +452,14 @@
     document.getElementById("csv-input").addEventListener("change", (event) => {
      loadCsvFile(event.target.files[0]);
      event.target.value = "";
+    });
+
+    document.getElementById("theme-select").addEventListener("change", (event) => {
+     currentTheme = event.target.value;
+     if (chart) {
+      chart.nodeContent(themedNodeContent).render().fit();
+     }
+     setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
     });
 
     const dropOverlay = document.getElementById("drop-overlay");
