@@ -12,10 +12,7 @@
   <!----------------   ORG CHART NON ESSENTIAL CONTENT ------------>
   <script src="build/vendor/html2canvas.js"></script>
   <script src="build/vendor/jspdf.umd.min.js"></script>
-  <link
-   href="build/simptip.min.css"
-   rel="stylesheet"
-  />
+  <link href="build/simptip.min.css" rel="stylesheet" />
 
   <style>
    [data-tooltip]:focus:after {
@@ -38,10 +35,7 @@
    }
   </style>
 
-  <link
-   href="build/app.css"
-   rel="stylesheet"
-  />
+  <link href="build/app.css" rel="stylesheet" />
 
   <div class="toolbar">
    <div class="toolbar__brand">
@@ -62,10 +56,10 @@
     />
    </label>
 
-    <label class="theme-picker">
-     <i class="fas fa-palette"></i>
-     <select id="theme-select" title="Tema visual"></select>
-    </label>
+   <label class="theme-picker">
+    <i class="fas fa-palette"></i>
+    <select id="theme-select" title="Design (bumbeishvili/org-chart)"></select>
+   </label>
 
    <div class="toolbar__divider"></div>
 
@@ -122,23 +116,15 @@
    <div class="toolbar__divider"></div>
 
    <div class="toolbar__group">
-    <button
-     class="btn"
-     onclick='chart.setCentered("134").render()'
-     title="Centralizar nó"
-    >
+    <button class="btn" onclick="centerFocusNode()" title="Centralizar nó">
      <i class="fas fa-crosshairs"></i> Center
     </button>
-    <button
-     class="btn"
-     onclick='chart.setHighlighted("134").render()'
-     title="Destacar nó"
-    >
+    <button class="btn" onclick="highlightFocusNode()" title="Destacar nó">
      <i class="fas fa-highlighter"></i> Highlight
     </button>
     <button
      class="btn"
-     onclick='chart.setUpToTheRootHighlighted("134").render()'
+     onclick="highlightPathToRoot()"
      title="Destacar caminho até a raiz"
     >
      <i class="fas fa-arrow-up"></i> To Root
@@ -153,17 +139,13 @@
    </div>
 
    <div class="toolbar__group">
-    <button
-     class="btn btn--primary"
-     onclick='chart.addNode({id:"root-child-"+Date.now(),parentId:"100",name:"Novo",lastName:"Colaborador",position:"Cargo",department_name:"Equipe",_centered:true}).render()'
-     title="Adicionar nó"
-    >
+    <button class="btn btn--primary" onclick="addSampleNode()" title="Adicionar nó">
      <i class="fas fa-user-plus"></i> Add Node
     </button>
     <button
      class="btn btn--danger"
-     onclick='chart.removeNode("120").render()'
-     title="Remover nó #120"
+     onclick="removeSampleNode()"
+     title="Remover o último nó adicionado (ou uma folha da árvore)"
     >
      <i class="fas fa-user-minus"></i> Remove
     </button>
@@ -172,7 +154,7 @@
 
   <div class="status-bar">
    <span class="status-bar__dot"></span>
-   <span id="status-msg">Pronto • 107 funcionários carregados</span>
+   <span id="status-msg">Carregando…</span>
   </div>
 
   <div class="chart-wrapper">
@@ -191,309 +173,898 @@
   <script src="build/d3.v7.min.js"></script>
   <script src="build/d3-org-chart.js"></script>
   <script src="build/d3-flextree.js"></script>
+  <script src="build/vendor/pieChart.js"></script>
 
   <script>
+   // ---------------------------------------------------------------------
+   // Os 7 designs abaixo são portes literais dos exemplos publicados em
+   // github.com/bumbeishvili/org-chart ("Jump To Examples"):
+   //   Default        -> stackblitz.com/edit/web-platform-sgsxzp
+   //   Sky            -> stackblitz.com/edit/web-platform-jyncb9
+   //   Circles        -> stackblitz.com/edit/web-platform-lwyild
+   //   Oval           -> stackblitz.com/edit/web-platform-uhd3q7
+   //   Clean          -> stackblitz.com/edit/web-platform-3gwnsg
+   //   Futuristic     -> stackblitz.com/edit/web-platform-o5t1ha
+   //   Prev version   -> stackblitz.com/edit/web-platform-thplyq
+   // Únicas adaptações: (1) os exemplos leem sample-data/org.csv, aqui as
+   // colunas do misc/data.csv são mapeadas para os nomes que eles esperam
+   // (imageUrl / positionName / area / office); (2) `neightbourMargin` era
+   // o nome (com typo) do setter na v2 da lib — na v3 local é
+   // `neighbourMargin`; (3) svgHeight vem do container da página; (4) em
+   // Sky, Circles e Oval, nome/cargo ganharam nowrap + ellipsis: os exemplos
+   // usam cargos curtos ("CTO"), os cargos deste CSV quebram em 2 linhas e
+   // ou vazam para fora da faixa/pill (28px e 70px de altura fixa), ou
+   // empurram o rodapé Manages/Oversees contra a borda do card (Sky),
+   // deixando cards do mesmo design com espaçamentos diferentes.
+   // ---------------------------------------------------------------------
+
    var index = 0;
    var chart;
+   var currentDesign = "default";
    var currentData = [];
-  var currentTheme = "classic";
-  var themes = [
-   ["classic", "Classic", "#1565C0", "#FFFFFF", "#1565C0", "#475569"],
-   ["sky", "Sky", "#29B6D1", "#F5FAFC", "#0F4C81", "#475569"],
-   ["circles", "Circles", "#00A6A6", "#FFFFFF", "#00695C", "#37474F"],
-   ["oval", "Oval", "#F59E0B", "#FFFBEB", "#92400E", "#78350F"],
-   ["clean", "Clean", "#64748B", "#FFFFFF", "#0F172A", "#64748B"],
-   ["futuristic", "Futuristic", "#22D3EE", "#071827", "#67E8F9", "#A5F3FC"],
-  ["previous", "Previous version", "#2FA8C5", "#2FA8C5", "#FFFFFF", "#FFFFFF"]
-  ];
-  var modelNames = [
-   "Simple Data", "Custom Content", "Nested Data", "Online JSON Data", "CSV Data", "Styled Tree", "Expand Node", "Collapse Node", "Add Node", "Remove Node", "Fit Screen", "Change Layout", "Center Node", "Highlight Node", "Fullscreen", "Zoom In/Out", "Export", "Expand/Collapse All", "Multi Node Connections", "Paging", "Horizontal View", "Active Node Centering", "Interactive Node", "Searching", "Scrollable Content", "Data Driven Size", "Dropdown", "Multi Root", "Minimap", "Drag and Drop", "Avatar Rail", "Metric Board", "Executive Card", "Department Bands", "Timeline Tree", "Status Cards", "Profile Tiles", "Hierarchy Pills", "Compact Matrix", "Focus Path", "Team Lanes", "Role Badges", "Command Center", "Org Map", "People Grid"
-  ];
-  modelNames.forEach((name, index) => {
-   const palettes = [
-    ["#2563EB", "#FFFFFF", "#1E3A8A", "#475569"],
-    ["#0D9488", "#F0FDFA", "#134E4A", "#365314"],
-    ["#DB2777", "#FFF1F2", "#9D174D", "#831843"],
-    ["#7C3AED", "#F5F3FF", "#5B21B6", "#4C1D95"],
-    ["#D97706", "#FFFBEB", "#92400E", "#78350F"]
-   ][index % 5];
-   themes.push([`model-${index + 8}`, name, palettes[0], palettes[1], palettes[2], palettes[3], index + 1]);
-  });
-  function buildThemeMenu() {
-   const select = document.getElementById("theme-select");
-   themes.forEach((theme, index) => {
-    const option = document.createElement("option");
-    option.value = theme[0];
-    option.textContent = `${String(index + 1).padStart(2, "0")} · ${theme[1]}`;
-    select.appendChild(option);
-   });
-  }
-  buildThemeMenu();
-   function activeTheme() {
-    const theme = themes.find((item) => item[0] === currentTheme) || themes[0];
-    return { accent: theme[2], background: theme[3], text: theme[4], muted: theme[5], variant: theme[6] || 0 };
-   }
-   function themedNodeContent(d) {
-    const theme = activeTheme();
-    const highlighted = d.data._upToTheRootHighlighted || d.data._highlighted;
-    const variant = theme.variant;
-    const name = `${d.data.name} ${d.data.lastName || ''}`.trim();
-    if (variant) {
-     const kind = variant % 10;
-     const layouts = [
-      `display:flex;align-items:center;gap:12px`,
-      `display:flex;flex-direction:column;align-items:center;justify-content:center`,
-      `display:grid;grid-template-columns:58px 1fr;align-items:center;gap:10px`,
-      `display:flex;align-items:flex-start;gap:8px;border-left:8px solid ${theme.accent}`,
-      `display:flex;flex-direction:column;justify-content:space-between`,
-      `display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center`,
-      `display:flex;align-items:center;gap:8px;border-radius:28px`,
-      `display:flex;flex-direction:column;align-items:flex-start;justify-content:center`,
-      `display:flex;align-items:center;gap:6px`,
-      `display:grid;grid-template-columns:46px 1fr;align-items:center;gap:8px`
-     ][kind];
-     const radius = kind === 1 ? "50%" : (kind === 6 ? "28px" : `${4 + (variant % 5)}px`);
-     const image = `<img src="${d.data.image || ''}" onerror="this.style.display='none'" style="width:${kind === 1 ? 54 : 46}px;height:${kind === 1 ? 54 : 46}px;border-radius:50%;object-fit:cover;border:3px solid ${theme.accent};background:#CBD5E1;flex-shrink:0;"/>`;
-     const metrics = `<small style="display:flex;justify-content:space-between;color:${theme.muted};font-size:9px;margin-top:6px;"><span>${d.data._directSubordinates || 0} direct</span><span>${d.data._totalSubordinates || 0} total</span></small>`;
-     return `<div style="width:240px;height:90px;padding:${kind === 1 ? 8 : 10}px;box-sizing:border-box;background:${theme.background};border:2px solid ${highlighted ? '#F59E0B' : theme.accent};border-radius:${radius};box-shadow:0 2px 7px rgba(15,23,42,.16);${layouts};font-family:'Inter','Helvetica',sans-serif;color:${theme.text};overflow:hidden;">
-       ${image}<div style="min-width:0;flex:1;width:${kind === 1 ? 'auto' : '100%'};"><div style="font-size:${kind === 5 ? 11 : 13}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div><div style="font-size:10px;color:${theme.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.data.position || ''}</div><div style="font-size:9px;color:${theme.accent};margin-top:3px;">${kind === 7 ? 'TEAM ' : ''}${d.data.department_name || 'Organization'}</div>${kind === 4 || kind === 5 || kind === 8 ? metrics : ''}</div>
-      ${kind === 2 ? `<span style="position:absolute;right:8px;top:6px;font-size:9px;color:${theme.muted};">#${d.data.id}</span>` : ''}
-     </div>`;
-    }
-    return `<div style="width:240px;height:90px;padding:8px 12px;box-sizing:border-box;background:${highlighted ? '#FEF3C7' : theme.background};border:2px solid ${highlighted ? '#F59E0B' : theme.accent};border-radius:10px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 6px rgba(0,0,0,.15);font-family:'Inter','Helvetica',sans-serif;">
-      <img src="${d.data.image || ''}" onerror="this.style.display='none'" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid ${theme.accent};flex-shrink:0;background:#E3F2FD;"/>
-      <div style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-width:0;">
-       <div style="font-weight:700;font-size:14px;color:${theme.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.data.name} ${d.data.lastName || ''}</div>
-       <div style="font-size:12px;color:${theme.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${d.data.position || ''}</div>
-       <div style="font-size:11px;color:${theme.muted};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="fas fa-building" style="color:${theme.accent};"></i> ${d.data.department_name || ''}</div>
+   var addedIds = [];
+
+   var designs = [
+    {
+     id: "default",
+     label: "Default",
+     background: "white",
+     // Porte do próprio tree.html do repositório (o nodeContent está lá
+     // comentado, junto da configuração ativa de nodeWidth/nodeHeight e do
+     // override de layoutBindings). Sem ele, a lib cai no nodeContent padrão,
+     // que é só o placeholder "Sample Node(id=…), override using…".
+     apply: (c) => {
+      c.nodeHeight((d) => 85 + 25)
+       .nodeWidth((d) => {
+        return 220 + 2;
+       })
+       .childrenMargin((d) => 50)
+       .compactMarginBetween((d) => 35)
+       .compactMarginPair((d) => 30)
+       .neighbourMargin((a, b) => 20)
+       .nodeContent(function (d, i, arr, state) {
+        const color = "#FFFFFF";
+        const imageDiffVert = 25 + 2;
+        return `
+                <div style='width:${d.width}px;height:${
+         d.height
+        }px;padding-top:${
+         imageDiffVert - 2
+        }px;padding-left:1px;padding-right:1px'>
+                    <div style="font-family: 'Inter', sans-serif;background-color:${color};  margin-left:-1px;width:${
+         d.width - 2
+        }px;height:${
+         d.height - imageDiffVert
+        }px;border-radius:10px;border: 1px solid #E4E2E9">
+                        <div style="display:flex;justify-content:flex-end;margin-top:5px;margin-right:5px">#${
+                         d.data.id
+                        }</div>
+                        <div style="background-color:${color};margin-top:${
+         -imageDiffVert - 20
+        }px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
+                        <div style="margin-top:${
+                         -imageDiffVert - 20
+                        }px;">   <img src=" ${
+         d.data.image
+        }" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
+                        <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:10px">  ${
+                         d.data.name
+                        } </div>
+                        <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
+                         d.data.position
+                        } </div>
+
+                    </div>
+                </div>
+                        `;
+       });
+
+      c.layoutBindings(
+       (() => {
+        const layouts = c.layoutBindings();
+        layouts.top.linkY = (node) => node.y + 0;
+        layouts.top.linkCompactYStart = (node) => node.y + node.height / 2 + 15;
+        return layouts;
+       })()
+      );
+      return c;
+     }
+    },
+
+    {
+     id: "sky",
+     label: "Sky",
+     background: "#f6f6f6",
+     apply: (c) =>
+      c
+       .nodeWidth((d) => 250)
+       .initialZoom(0.7)
+       .nodeHeight((d) => 175)
+       .childrenMargin((d) => 40)
+       .compactMarginBetween((d) => 15)
+       .compactMarginPair((d) => 80)
+       .nodeContent(function (d, i, arr, state) {
+        return `
+            <div style="padding-top:30px;background-color:none;margin-left:1px;height:${
+             d.height
+            }px;border-radius:2px;overflow:visible">
+              <div style="height:${
+               d.height - 32
+              }px;padding-top:0px;background-color:white;border:1px solid lightgray;">
+
+                <img src=" ${
+                 d.data.imageUrl
+                }" style="margin-top:-30px;margin-left:${
+         d.width / 2 - 30
+        }px;border-radius:100px;width:60px;height:60px;" />
+
+               <div style="margin-right:10px;margin-top:15px;float:right">${
+                d.data.id
+               }</div>
+
+               <div style="margin-top:-30px;background-color:#3AB6E3;height:10px;width:${
+                d.width - 2
+               }px;border-radius:1px"></div>
+
+               <div style="padding:20px; padding-top:35px;text-align:center">
+                   <div style="color:#111672;font-size:16px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+                    d.data.name
+                   } </div>
+                   <div style="color:#404040;font-size:16px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+                    d.data.positionName
+                   } </div>
+               </div>
+               <div style="display:flex;justify-content:space-between;padding-left:15px;padding-right:15px;">
+                 <div > Manages:  ${d.data._directSubordinates} 👤</div>
+                 <div > Oversees: ${d.data._totalSubordinates} 👤</div>
+               </div>
+              </div>
       </div>
-     </div>`;
+  `;
+       })
+    },
+
+    {
+     id: "circles",
+     label: "Circles",
+     background: "#fffeff",
+     apply: (c) =>
+      c
+       .rootMargin(100)
+       .nodeWidth((d) => 210)
+       .nodeHeight((d) => 140)
+       .childrenMargin((d) => 130)
+       .compactMarginBetween((d) => 75)
+       .compactMarginPair((d) => 80)
+       .linkUpdate(function (d, i, arr) {
+        d3.select(this)
+         .attr("stroke", (d) =>
+          d.data._upToTheRootHighlighted ? "#152785" : "lightgray"
+         )
+         .attr("stroke-width", (d) =>
+          d.data._upToTheRootHighlighted ? 5 : 1.5
+         )
+         .attr("stroke-dasharray", "4,4");
+
+        if (d.data._upToTheRootHighlighted) {
+         d3.select(this).raise();
+        }
+       })
+       .nodeContent(function (d, i, arr, state) {
+        const colors = [
+         "#6E6B6F",
+         "#18A8B6",
+         "#F45754",
+         "#96C62C",
+         "#BD7E16",
+         "#802F74"
+        ];
+        const color = colors[d.depth % colors.length];
+        const imageDim = 80;
+        const lightCircleDim = 95;
+        const outsideCircleDim = 110;
+
+        return `
+                <div style="background-color:white; position:absolute;width:${
+                 d.width
+                }px;height:${d.height}px;">
+                   <div style="background-color:${color};position:absolute;margin-top:-${
+         outsideCircleDim / 2
+        }px;margin-left:${
+         d.width / 2 - outsideCircleDim / 2
+        }px;border-radius:100px;width:${outsideCircleDim}px;height:${outsideCircleDim}px;"></div>
+                   <div style="background-color:#ffffff;position:absolute;margin-top:-${
+                    lightCircleDim / 2
+                   }px;margin-left:${
+         d.width / 2 - lightCircleDim / 2
+        }px;border-radius:100px;width:${lightCircleDim}px;height:${lightCircleDim}px;"></div>
+                   <img src=" ${
+                    d.data.imageUrl
+                   }" style="position:absolute;margin-top:-${
+         imageDim / 2
+        }px;margin-left:${
+         d.width / 2 - imageDim / 2
+        }px;border-radius:100px;width:${imageDim}px;height:${imageDim}px;" />
+                   <div class="card" style="top:${
+                    outsideCircleDim / 2 + 10
+                   }px;position:absolute;height:30px;width:${
+         d.width
+        }px;background-color:#3AB6E3;">
+                      <div style="background-color:${color};height:28px;text-align:center;padding-top:10px;color:#ffffff;font-weight:bold;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          ${d.data.name}
+                      </div>
+                      <div style="background-color:#F0EDEF;height:28px;text-align:center;padding-top:10px;color:#424142;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          ${d.data.positionName}
+                      </div>
+                   </div>
+               </div>
+  `;
+       })
+    },
+
+    {
+     id: "oval",
+     label: "Oval",
+     background: "#fffeff",
+     apply: (c) =>
+      c
+       .nodeHeight((d) => 70)
+       .nodeWidth((d) => {
+        if (d.depth == 0) return 250;
+        if (d.depth == 1) return 220;
+        return 140;
+       })
+       .childrenMargin((d) => 50)
+       .compactMarginBetween((d) => 35)
+       .compactMarginPair((d) => 30)
+       .neighbourMargin((a, b) => 20)
+       .buttonContent(({ node, state }) => {
+        return `<div style="border-radius:3px;padding:3px;font-size:10px;margin:auto auto;background-color:lightgray"> <span style="font-size:9px">${
+         node.children
+          ? `<i class="fas fa-chevron-up"></i>`
+          : `<i class="fas fa-chevron-down"></i>`
+        }</span> ${node.data._directSubordinates}  </div>`;
+       })
+       .nodeContent(function (d, i, arr, state) {
+        const colors = ["#278B8D", "#404040", "#0C5C73", "#33C6CB"];
+        const color = colors[d.depth % colors.length];
+        return `
+            <div style="background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+         d.width
+        }px;height:${d.height}px;border-radius:50px">
+               <img src=" ${
+                d.data.imageUrl
+               }" style="position:absolute;margin-top:5px;margin-left:${5}px;border-radius:100px;width:60px;height:60px;" />
+               <div style="position:absolute;top:-15px;width:${
+                d.width
+               }px;text-align:center;color:#fafafa;">
+                     <div style="margin:0 auto;background-color:${color};display:inline-block;padding:8px;padding-bottom:0px;border-radius:5px"> ${
+         d.data.id
+        }</div>
+              </div>
+
+              <div style="color:#fafafa;font-size:${
+               d.depth < 2 ? 16 : 12
+              }px;font-weight:bold;margin-left:70px;margin-right:20px;margin-top:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+         d.depth < 2
+          ? d.data.name
+          : (d.data.name || "").trim().split(/\s+/g)[0]
+        } </div>
+              <div style="color:#fafafa;margin-left:70px;margin-right:20px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+               d.depth < 2 ? d.data.positionName : d.data.area
+              } </div>
+           </div>
+  `;
+       })
+    },
+
+    {
+     id: "clean",
+     label: "Clean",
+     background: "#fffeff",
+     apply: (c) =>
+      c
+       .nodeHeight((d) => 85)
+       .nodeWidth((d) => {
+        return 220;
+       })
+       .childrenMargin((d) => 50)
+       .compactMarginBetween((d) => 25)
+       .compactMarginPair((d) => 50)
+       .neighbourMargin((a, b) => 25)
+       .siblingsMargin((d) => 25)
+       .buttonContent(({ node, state }) => {
+        return `<div style="px;color:#716E7B;border-radius:5px;padding:4px;font-size:10px;margin:auto auto;background-color:white;border: 1px solid #E4E2E9"> <span style="font-size:9px">${
+         node.children
+          ? `<i class="fas fa-angle-up"></i>`
+          : `<i class="fas fa-angle-down"></i>`
+        }</span> ${node.data._directSubordinates}  </div>`;
+       })
+       .linkUpdate(function (d, i, arr) {
+        d3.select(this)
+         .attr("stroke", (d) =>
+          d.data._upToTheRootHighlighted ? "#152785" : "#E4E2E9"
+         )
+         .attr("stroke-width", (d) => (d.data._upToTheRootHighlighted ? 5 : 1));
+
+        if (d.data._upToTheRootHighlighted) {
+         d3.select(this).raise();
+        }
+       })
+       .nodeContent(function (d, i, arr, state) {
+        const color = "#FFFFFF";
+        return `
+            <div style="font-family: 'Inter', sans-serif;background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+         d.width
+        }px;height:${d.height}px;border-radius:10px;border: 1px solid #E4E2E9">
+               <div style="background-color:${color};position:absolute;margin-top:-25px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
+               <img src=" ${
+                d.data.imageUrl
+               }" style="position:absolute;margin-top:-20px;margin-left:${20}px;border-radius:100px;width:40px;height:40px;" />
+
+              <div style="color:#08011E;position:absolute;right:20px;top:17px;font-size:10px;"><i class="fas fa-ellipsis-h"></i></div>
+
+              <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:32px"> ${
+               d.data.name
+              } </div>
+              <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
+               d.data.positionName
+              } </div>
+
+
+           </div>
+  `;
+       })
+    },
+
+    {
+     id: "futuristic",
+     label: "Futuristic",
+     background: "#000c0e",
+     prepare: (rows) => {
+      rows.forEach((d) => {
+       const val = Math.round((d.name || "").length / 2);
+       d.progress = [...new Array(val)].map((d) => Math.random() * 25 + 5);
+      });
+      return rows;
+     },
+     apply: (c) =>
+      c
+       .nodeHeight((d) => 170)
+       .nodeWidth((d) => {
+        if (d.depth == 0) return 500;
+        return 330;
+       })
+       .childrenMargin((d) => 90)
+       .compactMarginBetween((d) => 65)
+       .compactMarginPair((d) => 100)
+       .neighbourMargin((a, b) => 50)
+       .siblingsMargin((d) => 100)
+       .buttonContent(({ node, state }) => {
+        return `<div style="color:#2CAAE5;border-radius:5px;padding:3px;font-size:10px;margin:auto auto;background-color:#040910;border: 1px solid #2CAAE5"> <span style="font-size:9px">${
+         node.children
+          ? `<i class="fas fa-angle-up"></i>`
+          : `<i class="fas fa-angle-down"></i>`
+        }</span> ${node.data._directSubordinates}  </div>`;
+       })
+       .linkUpdate(function (d, i, arr) {
+        d3.select(this)
+         .attr("stroke", (d) =>
+          d.data._upToTheRootHighlighted ? "#14760D" : "#2CAAE5"
+         )
+         .attr("stroke-width", (d) =>
+          d.data._upToTheRootHighlighted ? 15 : 1
+         );
+
+        if (d.data._upToTheRootHighlighted) {
+         d3.select(this).raise();
+        }
+       })
+       .nodeContent(function (d, i, arr, state) {
+        const svgStr = `<svg width=150 height=75  style="background-color:none"> <path d="M 0,15 L15,0 L135,0 L150,15 L150,60 L135,75 L15,75 L0,60" fill="#2599DD" stroke="#2599DD"/> </svg>`;
+        return `
+                          <div class="left-top" style="position:absolute;left:-10px;top:-10px">  ${svgStr}</div>
+                          <div class="right-top" style="position:absolute;right:-10px;top:-10px">  ${svgStr}</div>
+                          <div class="right-bottom" style="position:absolute;right:-10px;bottom:-14px">  ${svgStr}</div>
+                          <div class="left-bottom" style="position:absolute;left:-10px;bottom:-14px">  ${svgStr}</div>
+                          <div style="font-family: 'Inter'; background-color:#040910;sans-serif; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+                           d.width
+                          }px;height:${
+         d.height
+        }px;border-radius:0px;border: 2px solid #2CAAE5">
+
+                             <div class="pie-chart-wrapper" style="margin-left:-10px;margin-top:5px;width:320px;height:300px"></div>
+
+                            <div style="color:#2CAAE5;position:absolute;right:15px;top:-20px;">
+                              <div style="font-size:15px;color:#2CAAE5;margin-top:32px"> ${
+                               d.data.name
+                              } </div>
+                              <div style="font-size:10px;"> ${
+                               d.data.positionName || ""
+                              } </div>
+                              <div style="font-size:10px;"> ${
+                               d.data.id || ""
+                              } </div>
+                              ${
+                               d.depth == 0
+                                ? `                              <br/>
+                              <div style="max-width:200px;font-size:10px;">
+                                A corporate history of Ian is a chronological account of a business or other co-operative organization he founded.  <br><br>Usually it is produced in written format but it can also be done in audio or audiovisually
+                              </div>`
+                                : ""
+                              }
+
+                            </div>
+
+                            <div style="position:absolute;left:-5px;bottom:10px;">
+                              <div style="font-size:10px;color:#2CAAE5;margin-left:20px;margin-top:32px"> Progress </div>
+                              <div style="color:#2CAAE5;margin-left:20px;margin-top:3px;font-size:10px;">
+                                <svg width=150 height=30> ${(
+                                 d.data.progress || []
+                                )
+                                 .map((h, i) => {
+                                  return `<rect  width=10 x="${
+                                   i * 12
+                                  }" height=${h}  y=${30 - h} fill="#B41425"/>`;
+                                 })
+                                 .join("")}  </svg>
+                                </div>
+                            </div>
+                          </div>
+
+  `;
+       })
+       .nodeUpdate(function (d, i, arr) {
+        d3.select(this)
+         .select(".node-rect")
+         .attr("stroke", (d) =>
+          d.data._highlighted || d.data._upToTheRootHighlighted
+           ? "#14760D"
+           : "none"
+         )
+         .attr(
+          "stroke-width",
+          d.data._highlighted || d.data._upToTheRootHighlighted ? 40 : 1
+         );
+
+        const pieChartWrapperNode = d3
+         .select(this)
+         .select(".pie-chart-wrapper")
+         .node();
+        // Os nós de paginação ("Show next N nodes") não usam o nodeContent
+        // deste design, então não têm o wrapper do gráfico de pizza.
+        if (!pieChartWrapperNode) return;
+        const val = ((d.data.name || "").length * 5) % 100; // Dummy calc
+        // General pie chart invokation code
+        new PieChart()
+         .data([
+          { key: "plan", color: "#6EC2EA", value: val },
+          { key: "exec", color: "#0D5AAF", value: 100 - val }
+         ])
+         .container(pieChartWrapperNode)
+         .svgHeight(200)
+         .svgWidth(320)
+         .marginTop(40)
+         .image(d.data.imageUrl)
+         .backCircleColor("#1F72A7")
+         .defaultFont("Inter")
+         .render();
+       }),
+     after: () => {
+      const url = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4QMaAyMA1SdmlAAAAVRJREFUeNrt26FOw2AUhuFTElzrETNLMNPtJVRVVFbtlnYXKGQFqldANo3EoLDUITazzCxBTNBk53lv4M+XJ/ndKZ52L9uft9eP+Oeqbtgs8O7+cbWO36/PiIgmwd4ojsdIU9n2l7XzNBYZNj9Eos6oTRbcdMAZAwxYgAVYgAVYgAUYsAALsAALsAALMGABFmABFmABFmABBizAAqwFgZ/fv+slHl7q3aobNpn2proujIgo276ep/HgixZgARZgARZgAQYswAIswAIswAIswIAFWIAFWIAFWIABC7AAC7AAC7D+AHZdeN97XRf6ogVYgAVYgAVYgAELsAALsAALsAADFmABFmABFmABFmDAAizAAizAAqxrYNeF973XdaEvWoAFWIAFWIAFGLAAC7AAC7AACzBgARZgARZgARZgAQYswAIswAKsW0p1m1S2/WXtPI1Fhs0nxU1Jj2yxm2sAAAAASUVORK5CYII=`;
+      const replaced = url.replace(/(\r\n|\n|\r)/gm, "");
+      d3.select(".svg-chart-container")
+       .style(
+        "background",
+        'radial-gradient(circle at center, #04192B 0, #000B0E 100%) url("https://raw.githubusercontent.com/bumbeishvili/coronavirus.davidb.dev/master/glow.png")'
+       )
+       .style(
+        "background-image",
+        `url(${replaced}), radial-gradient(circle at center, #04192B 0, #000B0E 100%)`
+       );
+     }
+    },
+
+    {
+     id: "previous",
+     label: "Prev version design",
+     background: "white",
+     prepare: (rows) =>
+      rows.map((d) => {
+       const width = Math.round(Math.random() * 50 + 300);
+       const height = Math.round(Math.random() * 20 + 130);
+       const cornerShape = ["ORIGINAL", "ROUNDED", "CIRCLE"][
+        Math.round(Math.random() * 2)
+       ];
+       const nodeImageWidth = 100;
+       const nodeImageHeight = 100;
+       const centerTopDistance = 0;
+       const centerLeftDistance = 0;
+       const expanded = false;
+
+       const titleMarginLeft = nodeImageWidth / 2 + 20 + centerLeftDistance;
+       const contentMarginLeft = width / 2 + 25;
+       return {
+        nodeId: d.id,
+        parentNodeId: d.parentId,
+        width: width,
+        height: height,
+        borderWidth: 1,
+        borderRadius: 5,
+        borderColor: { red: 15, green: 140, blue: 121, alpha: 1 },
+        backgroundColor: { red: 51, green: 182, blue: 208, alpha: 1 },
+        nodeImage: {
+         url: d.imageUrl,
+         width: nodeImageWidth,
+         height: nodeImageHeight,
+         centerTopDistance: centerTopDistance,
+         centerLeftDistance: centerLeftDistance,
+         cornerShape: cornerShape,
+         shadow: false,
+         borderWidth: 0,
+         borderColor: { red: 19, green: 123, blue: 128, alpha: 1 }
+        },
+        nodeIcon: { icon: "https://to.ly/1yZnX", size: 30 },
+        template: `<div>
+                  <div style="margin-left:${titleMarginLeft}px;
+                              margin-top:10px;
+                              font-size:15px;
+                              font-weight:bold;
+                         ">${d.name} </div>
+                 <div style="margin-left:${titleMarginLeft}px;
+                              margin-top:3px;
+                              font-size:13px;
+                         ">${d.positionName} </div>
+
+                 <div style="margin-left:${titleMarginLeft}px;
+                              margin-top:3px;
+                              font-size:12px;
+                         ">${d.unit?.value || "Unit"}</div>
+
+                 <div style="margin-left:${contentMarginLeft}px;
+                             margin-top:15px;
+                             font-size:12px;
+                             position:absolute;
+                             bottom:5px;
+                            ">
+                      <div>${d.office}</div>
+                      <div style="font-size:12px;margin-top:5px">${d.area}</div>
+                 </div>
+              </div>`,
+        connectorLineColor: { red: 220, green: 189, blue: 207, alpha: 1 },
+        connectorLineWidth: 5,
+        dashArray: "",
+        expanded: expanded
+       };
+      }),
+     apply: (c) =>
+      c
+       .nodeWidth((n) => 250)
+       .nodeHeight((n) => 120)
+       .compactMarginBetween((d) => 50)
+       .siblingsMargin((d) => 100)
+       .nodeContent((d) => {
+        return `
+              <div class="outer-wrapper" style="padding-left:70px;padding-top:0px;background-color:none;width:${
+               d.width - 70
+              }px;height:${d.height}px">
+                <img style="border-radius:5px;margin-left:-100px;margin-top:-20px" width=60 height=60 src="${
+                 d.data.nodeImage.url
+                }"/>
+
+                <div  style="margin-left:-70px;margin-top:-40px;border-radius:5px;color:white;background-color:#2DA7C6;width:${
+                 d.width
+                }px;  height:${d.height}px">
+                   <div style="margin-left:-30px;padding-top:2px">${
+                    d.data.template
+                   }</div>
+
+                </div>
+
+                <div style="color:white;margin-top:-37px;margin-left:-65px"> ${
+                 d.data._totalSubordinates
+                } Subordinates <br/> ${d.data._directSubordinates} Direct</div>
+              </div>
+              `;
+       })
+    }
+   ];
+
+   function buildDesignMenu() {
+    const select = document.getElementById("theme-select");
+    designs.forEach((design, i) => {
+     const option = document.createElement("option");
+     option.value = design.id;
+     option.textContent = `${String(i + 1).padStart(2, "0")} · ${design.label}`;
+     select.appendChild(option);
+    });
+    select.value = currentDesign;
    }
-   d3.csv("misc/data.csv").then((dataFlattened) => {
-    currentData = dataFlattened;
+
+   function activeDesign() {
+    return designs.find((item) => item.id === currentDesign) || designs[0];
+   }
+
+   // As colunas do misc/data.csv mapeadas para os nomes usados pelos
+   // exemplos do repositório (que leem sample-data/org.csv).
+   function toChartRow(row) {
+    return Object.assign({}, row, {
+     id: row.id,
+     parentId: row.parentId,
+     name: `${row.name || ""} ${row.lastName || ""}`.trim(),
+     positionName: row.position || "",
+     imageUrl: row.image || "",
+     area: row.department_name || "",
+     office: row.location_state || row.department_name || ""
+    });
+   }
+
+   function chartHeight() {
+    const el = document.querySelector(".chart-container");
+    const rect = el.getBoundingClientRect();
+    return Math.max(400, Math.round(rect.height));
+   }
+
+   function renderDesign() {
+    const design = activeDesign();
+    const container = document.querySelector(".chart-container");
+    container.innerHTML = "";
+    container.style.backgroundColor = design.background;
+
+    let rows = currentData.map(toChartRow);
+    if (design.prepare) rows = design.prepare(rows);
 
     chart = new d3.OrgChart()
      .container(".chart-container")
+     .svgHeight(chartHeight())
+     .data(rows)
      .pagingStep((d) => 5)
-      .minPagingVisibleNodes((d) => 3)
-     .data(dataFlattened)
-     .nodeWidth((d) => 260)
-     .nodeHeight((d) => 110)
-     .childrenMargin((d) => 50)
-     .compactMarginBetween((d) => 25)
-     .compactMarginPair((d) => 50)
-    .nodeContent(themedNodeContent)
-     // .scaleExtent([1,1])
-     // .svgHeight(window.innerHeight)
-     // .nodeWidth((d3Node) => {
-     //     return 200;
-     //     let i = 0;
-     //     if (d3Node.parent) { i = d3Node.parent.children.indexOf(d3Node); }
-     //     if (i && i == d3Node.parent.children.length - 1) { return 600; }
-     //     return (!i || i == d3Node.parent.children.length - 1) ? 300 : 100
-     // })
-     // .nodeHeight((d3Node) => {
-     //     return 100;
-     //     let i = 0;
-     //     if (d3Node.parent) { i = d3Node.parent.children.indexOf(d3Node); }
-     //     if (i && i == d3Node.parent.children.length - 1) { return 300; }
-     //     return (!i || i == d3Node.parent.children.length - 1) ? 200 : 100
-     // })
-     // .siblingsMargin(d3Node => 0)
-     // .childrenMargin(d3Node => 50)
-     // .neighbourMargin((n1, n2) => 50)
-     // .compactMarginPair(d3Node => 70)
-     // .compactMarginBetween(d3Node => 30)
-     // .setActiveNodeCentered(true)
-     // .layout(new URLSearchParams(new URL(document.location.href).search).get('layout') || "top")
-     // .onNodeClick(d => console.log(d + ' node clicked'))
-     // .linkUpdate(function (d3Node, i, arr) {
-     //     const link = this;
-     //     d3.select(link)
-     //         .attr('stroke-dasharray', !i ? '2 2' : 'none')
-     //         .attr('stroke-width', 3)
-     // })
-     // .nodeUpdate(function (data, i, arr) {
-     //     d3.select(this).on('click.node', (event, d, i) => {
-     //         console.log(d.nodeId + ' node clicked')
-     //     })
-     // })
-     // .connections(
-     //     [
-     //         { id: 1, from: "O-6067", to: "O-6068", label: "Directly Reports To" },
-     //         { id: 2, from: "O-6070", to: "O-6066", label: "Reports To" },
-     //         { id: 3, from: "O-6088", to: "O-6069", label: "They were coworkers once" },
-     //         { id: 3, from: "O-6164", to: "O-6070", label: "Possible conflicts of interest" }
-     //     ],
-     // )
-     //                     .nodeContent(function (d, i, arr, state) {
+     .minPagingVisibleNodes((d) => 3)
+     .onNodeClick((d) => console.log("ok"));
 
-     //                         return `
-     //                            <div style="padding:0px">
-     // <!--
-     //                             ${state.layout == 'top' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-left:${-(d.flexCompactDim[0] / 2 - d.width) / 2 + state.compactMarginPair(d) / 4}px;width:${d.flexCompactDim[0]}px;height:${d.flexCompactDim[1]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
-     //                             ${state.layout == 'bottom' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-top:${-d.flexCompactDim[1] + d.height}px;margin-left:${-(d.flexCompactDim[0] / 2 - d.width) / 2 + state.compactMarginPair(d) / 4}px;width:${d.flexCompactDim[0]}px;height:${d.flexCompactDim[1]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
-     //                             ${state.layout == 'left' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5;margin-top:${-(d.flexCompactDim[0]/2-d.height)/2+ state.compactMarginPair(d) / 4}px;margin-left:${0}px;width:${d.flexCompactDim[1]}px;height:${d.flexCompactDim[0]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
-     //                             ${state.layout == 'right' && state.compact && d.flexCompactDim && (d.flexCompactDim[0] || d.flexCompactDim[0] == 1) ? ` <div style="border:1px solid black;opacity:0.5; margin-top:${-(d.flexCompactDim[0]/2-d.height)/2+ state.compactMarginPair(d) / 4}px;margin-left:${d.width-d.flexCompactDim[1]}px;width:${d.flexCompactDim[1]}px;height:${d.flexCompactDim[0]}px;z-index:-1;position:absolute;background-color:red"></div>` : ''}
-     //                         -->
-     //                              <img src="${d.data.imageUrl}"  style="border-radius:100px;width:60px;height:60px;" />
-     //                              ID: ${d.data.id} <br>
-     //                              Children Direct:${d.data._directSubordinates}<br>
-     //                              Children Total:${d.data._totalSubordinates}
-     //                             </div>
-     //                         `;
-     //                     })
-
-     .onNodeClick((d) => console.log("ok"))
-     //  .layout('right')
-     .compactMarginBetween((d) => 35)
-     .compactMarginPair((d) => 30)
-     .neighbourMargin((a, b) => 20);
-
-    // .buttonContent(({ node, state }) => {
-    //     return `<div style="color:#716E7B;border-radius:5px;padding:3px;font-size:10px;margin:auto auto;background-color:white;border: 1px solid #E4E2E9"> <span style="font-size:9px">${node.children ? `<i class="fas fa-angle-up"></i>` : `<i class="fas fa-angle-down"></i>`}</span> ${node.data._directSubordinates}  </div>`
-    // })
-    // .linkUpdate(function (d, i, arr) {
-    //     d3.select(this)
-    //         .attr("stroke", d => d.data._upToTheRootHighlighted ? '#152785' : '#E4E2E9')
-    //         .attr("stroke-width", d => d.data._upToTheRootHighlighted ? 5 : 1)
-
-    //     if (d.data._upToTheRootHighlighted) {
-    //         d3.select(this).raise()
-    //     }
-    // })
-    //  .nodeContent(function (d, i, arr, state) {
-    //   const color = "#FFFFFF";
-    //   const imageDiffVert = 25 + 2;
-    //   return `
-    //                 <div style='width:${
-    //                  d.width
-    //                 }px;height:${d.height}px;padding-top:${imageDiffVert - 2}px;padding-left:1px;padding-right:1px'>
-    //                     <div style="font-family: 'Inter', sans-serif;background-color:${color};  margin-left:-1px;width:${d.width - 2}px;height:${d.height - imageDiffVert}px;border-radius:10px;border: 1px solid #E4E2E9">
-    //                         <div style="display:flex;justify-content:flex-end;margin-top:5px;margin-right:5px">#${
-    //                          d.data.id
-    //                         }</div>
-    //                         <div style="background-color:${color};margin-top:${-imageDiffVert - 20}px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
-    //                         <div style="margin-top:${
-    //                          -imageDiffVert - 20
-    //                         }px;">   <img src=" ${d.data.image}" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
-    //                         <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:10px">  ${
-    //                          d.data.name
-    //                         } </div>
-    //                         <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
-    //                          d.data.position
-    //                         } </div>
-
-    //                     </div>
-    //                 </div>
-    //                         `;
-    //  });
-
-    chart.layoutBindings(
-     (() => {
-      const layouts = chart.layoutBindings();
-      layouts.top.linkY = (node) => node.y + 0;
-      layouts.top.linkCompactYStart = (node) => node.y + node.height / 2 + 15;
-      return layouts;
-     })()
-    );
-
+    design.apply(chart);
     chart.render();
+    if (design.after) design.after(chart);
+   }
+
+   d3.csv("misc/data.csv").then((dataFlattened) => {
+    currentData = dataFlattened;
+    buildDesignMenu();
+    renderDesign();
+    setStatus(`Pronto • ${currentData.length} funcionários carregados`);
    });
 
-    function downloadPdf() {
-     chart.exportImg({
-      save: false,
-      onLoad: (base64) => {
-      const pdf = new jspdf.jsPDF();
+   // ------------------------- ações da toolbar -------------------------
+
+   function rootId() {
+    const ids = new Set(currentData.map((row) => String(row.id)));
+    const root = currentData.find(
+     (row) => !String(row.parentId || "").trim() || !ids.has(String(row.parentId))
+    );
+    return root ? String(root.id) : null;
+   }
+
+   // Um nó que exista de fato nos dados atuais: preferimos um gestor que não
+   // seja a raiz, para que Center/Highlight tenham algo visível para mostrar.
+   function focusId() {
+    const root = rootId();
+    const parents = new Set(
+     currentData.map((row) => String(row.parentId || "")).filter(Boolean)
+    );
+    const manager = currentData.find(
+     (row) => parents.has(String(row.id)) && String(row.id) !== root
+    );
+    if (manager) return String(manager.id);
+    const other = currentData.find((row) => String(row.id) !== root);
+    return other ? String(other.id) : root;
+   }
+
+   function centerFocusNode() {
+    const id = focusId();
+    if (!id) return setStatus("Não há nós para centralizar", true);
+    chart.setCentered(id).render();
+    setStatus(`Nó ${id} centralizado`);
+   }
+
+   function highlightFocusNode() {
+    const id = focusId();
+    if (!id) return setStatus("Não há nós para destacar", true);
+    chart.setHighlighted(id).render();
+    setStatus(`Nó ${id} destacado`);
+   }
+
+   function highlightPathToRoot() {
+    const id = focusId();
+    if (!id) return setStatus("Não há nós para destacar", true);
+    chart.setUpToTheRootHighlighted(id).render();
+    setStatus(`Caminho de ${id} até a raiz destacado`);
+   }
+
+   function addSampleNode() {
+    const parentId = rootId();
+    if (!parentId) return setStatus("Carregue dados antes de adicionar um nó", true);
+    const id = "novo-" + Date.now();
+    currentData.push({
+     id: id,
+     parentId: parentId,
+     name: "Novo",
+     lastName: "Colaborador",
+     position: "Cargo",
+     department_name: "Equipe",
+     image: ""
+    });
+    addedIds.push(id);
+    renderDesign();
+    setStatus(`Nó ${id} adicionado sob ${parentId}`);
+   }
+
+   function removeSampleNode() {
+    let id = addedIds.pop();
+    if (!id) {
+     // sem nós adicionados nesta sessão: remove uma folha, para não derrubar
+     // uma subárvore inteira sem o usuário pedir
+     const parents = new Set(
+      currentData.map((row) => String(row.parentId || "")).filter(Boolean)
+     );
+     const leaf = currentData.find((row) => !parents.has(String(row.id)));
+     id = leaf && String(leaf.id);
+    }
+    if (!id) return setStatus("Não há nó para remover", true);
+    const before = currentData.length;
+    currentData = currentData.filter((row) => String(row.id) !== String(id));
+    if (currentData.length === before) return setStatus(`Nó ${id} não encontrado`, true);
+    renderDesign();
+    setStatus(`Nó ${id} removido`);
+   }
+
+   function downloadPdf() {
+    chart.exportImg({
+     save: false,
+     onLoad: (base64) => {
       const image = new Image();
-      image.src = base64;
       image.onload = () => {
-       pdf.addImage(image, "JPEG", 5, 5, 595 / 3, (image.height / image.width) * 595 / 3);
+       const landscape = image.width >= image.height;
+       const pdf = new jspdf.jsPDF({
+        orientation: landscape ? "landscape" : "portrait",
+        unit: "mm",
+        format: "a4"
+       });
+       const pageW = pdf.internal.pageSize.getWidth();
+       const pageH = pdf.internal.pageSize.getHeight();
+       const margin = 8;
+       const scale = Math.min(
+        (pageW - margin * 2) / image.width,
+        (pageH - margin * 2) / image.height
+       );
+       const w = image.width * scale;
+       const h = image.height * scale;
+       pdf.addImage(base64, "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
        pdf.save("organograma.pdf");
       };
-      },
-     });
+      image.onerror = () => setStatus("Não foi possível gerar o PDF", true);
+      image.src = base64;
+     }
+    });
+   }
+
+   // ------------------------- carregamento de CSV -------------------------
+
+   function validateRows(rows) {
+    const ids = new Set();
+    const duplicated = [];
+    rows.forEach((row) => {
+     const id = String(row.id);
+     if (ids.has(id)) duplicated.push(id);
+     ids.add(id);
+    });
+    if (duplicated.length) {
+     throw new Error(
+      `IDs duplicados no CSV: ${[...new Set(duplicated)].slice(0, 3).join(", ")}`
+     );
+    }
+    const roots = rows.filter((row) => !String(row.parentId || "").trim());
+    if (!roots.length) {
+     throw new Error("O CSV não tem nó raiz (uma linha com parentId vazio)");
+    }
+    if (roots.length > 1) {
+     throw new Error(
+      `O CSV tem ${roots.length} raízes; use apenas uma linha com parentId vazio`
+     );
+    }
+    const orphan = rows.find((row) => {
+     const parent = String(row.parentId || "").trim();
+     return parent && !ids.has(parent);
+    });
+    if (orphan) {
+     throw new Error(
+      `A linha ${orphan.id} aponta para um parentId inexistente (${orphan.parentId})`
+     );
+    }
+   }
+
+   function loadCsvFile(file) {
+    if (!file || !/\.csv$/i.test(file.name)) {
+     setStatus("Selecione um arquivo .csv válido", true);
+     return;
     }
 
-    function loadCsvFile(file) {
-     if (!file || !/\.csv$/i.test(file.name)) {
-      setStatus("Selecione um arquivo .csv válido", true);
-      return;
-     }
-
-     const reader = new FileReader();
-     reader.onload = (event) => {
-      try {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+     try {
       const rows = d3.csvParse(event.target.result);
       const validRows = rows.filter((row) => row.id && row.name);
       if (!validRows.length) {
        throw new Error("O CSV precisa conter as colunas id e name");
       }
+      validateRows(validRows);
       currentData = validRows;
-      chart.data(currentData).render().fit();
+      addedIds = [];
+      renderDesign();
+      chart.fit();
       setStatus(`${validRows.length} funcionários carregados de ${file.name}`);
-      } catch (error) {
+     } catch (error) {
       setStatus(error.message || "Não foi possível ler o CSV", true);
-      }
-     };
-     reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
-     reader.readAsText(file, "UTF-8");
+     }
+    };
+    reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
+    reader.readAsText(file, "UTF-8");
+   }
+
+   function setStatus(message, isError) {
+    const status = document.getElementById("status-msg");
+    if (status) {
+     status.textContent = message;
+     status.previousElementSibling.style.background = isError
+      ? "#ef4444"
+      : "#10b981";
     }
+   }
 
-    function setStatus(message, isError) {
-     const status = document.getElementById("status-msg");
-     if (status) {
-      status.textContent = message;
-      status.previousElementSibling.style.background = isError ? "#ef4444" : "#10b981";
-     }
-    }
+   document.getElementById("csv-input").addEventListener("change", (event) => {
+    loadCsvFile(event.target.files[0]);
+    event.target.value = "";
+   });
 
-    document.getElementById("csv-input").addEventListener("change", (event) => {
-     loadCsvFile(event.target.files[0]);
-     event.target.value = "";
-    });
+   document.getElementById("theme-select").addEventListener("change", (event) => {
+    currentDesign = event.target.value;
+    index = 0;
+    renderDesign();
+    setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
+   });
 
-    document.getElementById("theme-select").addEventListener("change", (event) => {
-     currentTheme = event.target.value;
-     if (chart) {
-      chart.nodeContent(themedNodeContent).render().fit();
-     }
-     setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
-    });
+   let resizeTimer;
+   window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+     if (chart) chart.svgHeight(chartHeight()).render().fit();
+    }, 200);
+   });
 
-    const dropOverlay = document.getElementById("drop-overlay");
-    let dragDepth = 0;
-    document.addEventListener("dragenter", (event) => {
-     event.preventDefault();
-     dragDepth += 1;
-     dropOverlay.classList.add("active");
-    });
-    document.addEventListener("dragover", (event) => event.preventDefault());
-    document.addEventListener("dragleave", (event) => {
-     event.preventDefault();
-     dragDepth -= 1;
-     if (dragDepth <= 0) {
-      dragDepth = 0;
-      dropOverlay.classList.remove("active");
-     }
-    });
-    document.addEventListener("drop", (event) => {
-     event.preventDefault();
+   const dropOverlay = document.getElementById("drop-overlay");
+   let dragDepth = 0;
+   document.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    dragDepth += 1;
+    dropOverlay.classList.add("active");
+   });
+   document.addEventListener("dragover", (event) => event.preventDefault());
+   document.addEventListener("dragleave", (event) => {
+    event.preventDefault();
+    dragDepth -= 1;
+    if (dragDepth <= 0) {
      dragDepth = 0;
      dropOverlay.classList.remove("active");
-     loadCsvFile(event.dataTransfer.files[0]);
-    });
+    }
+   });
+   document.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dragDepth = 0;
+    dropOverlay.classList.remove("active");
+    loadCsvFile(event.dataTransfer.files[0]);
+   });
   </script>
 
-  <link
-   href="build/inter.css"
-   rel="stylesheet"
-  />
-  <link
-   href="build/fontawesome.min.css?v=2"
-   rel="stylesheet"
-  />
-  <style></style>
+  <link href="build/inter.css" rel="stylesheet" />
+  <link href="build/fontawesome.min.css?v=2" rel="stylesheet" />
  </body>
 </html>
