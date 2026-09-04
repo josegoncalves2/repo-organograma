@@ -1,4 +1,9 @@
 # Docker Compose - bumbeishvili/org-chart demo
+networks:
+  net:
+    external: true
+    name: hub-login_net
+
 services:
   orgchart:
     container_name: orgchart-demo
@@ -9,9 +14,21 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
+    networks:
+      - net
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=hub-login_net"
+      - "traefik.http.routers.orgchart.rule=Host(`orgchart.${DOMAIN}`)"
+      - "traefik.http.routers.orgchart.entrypoints=websecure"
+      - "traefik.http.routers.orgchart.tls.certresolver=letsencrypt"
+      - "traefik.http.services.orgchart.loadbalancer.server.port=80"
+      # Protegido pelo login do Authentik (qualquer usuário autenticado,
+      # sem restrição de grupo — ver blueprints/hub-login-base.yaml)
+      - "traefik.http.routers.orgchart.middlewares=authentik-auth@docker"
