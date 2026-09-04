@@ -80,15 +80,15 @@
    <div class="toolbar__divider"></div>
 
    <div class="toolbar__group">
-    <button class="btn" onclick="chart.fit()" title="Ajustar à tela">
+    <button class="btn" onclick="chartFit()" title="Ajustar à tela">
      <i class="fas fa-expand"></i> Fit
     </button>
-    <button class="btn" onclick="chart.fullscreen()" title="Tela cheia">
+    <button class="btn" onclick="toggleFullscreen()" title="Tela cheia">
      <i class="fas fa-arrows-alt"></i> Full
     </button>
     <button
      class="btn"
-     onclick='chart.layout(["right","bottom","left","top"][index++%4]).render().fit()'
+     onclick="cycleLayout()"
      title="Trocar layout"
     >
      <i class="fas fa-exchange-alt"></i> Layout
@@ -96,10 +96,10 @@
    </div>
 
    <div class="toolbar__group">
-    <button class="btn" onclick="chart.expandAll()" title="Expandir tudo">
+    <button class="btn" onclick="safeCall('expandAll', 'Expandir tudo')" title="Expandir tudo">
      <i class="fas fa-plus-circle"></i> Expand All
     </button>
-    <button class="btn" onclick="chart.collapseAll()" title="Recolher tudo">
+    <button class="btn" onclick="safeCall('collapseAll', 'Recolher tudo')" title="Recolher tudo">
      <i class="fas fa-minus-circle"></i> Collapse All
     </button>
    </div>
@@ -109,19 +109,19 @@
    <div class="toolbar__group">
     <button
      class="btn"
-     onclick="chart.exportImg()"
+     onclick="safeExportImg(false)"
      title="Exportar PNG do que está visível"
     >
      <i class="fas fa-image"></i> PNG
     </button>
     <button
      class="btn"
-     onclick="chart.exportImg({full:true})"
+     onclick="safeExportImg(true)"
      title="Exportar PNG do grafo completo"
     >
      <i class="far fa-images"></i> PNG Full
     </button>
-    <button class="btn" onclick="chart.exportSvg()" title="Exportar SVG">
+    <button class="btn" onclick="safeExportSvg()" title="Exportar SVG">
      <i class="fas fa-code"></i> SVG
     </button>
     <button class="btn" onclick="downloadPdf()" title="Exportar PDF">
@@ -147,10 +147,13 @@
     </button>
     <button
      class="btn"
-     onclick="chart.clearHighlighting().render()"
+     onclick="clearHighlighting()"
      title="Limpar destaques"
     >
      <i class="fas fa-eraser"></i> Clear
+    </button>
+    <button class="btn" onclick="undoLast()" title="Desfazer a última alteração">
+     <i class="fas fa-undo"></i> Undo
     </button>
    </div>
 
@@ -219,6 +222,8 @@
    var currentDesign = "default";
    var currentData = [];
    var addedIds = [];
+   var selectedNodeId = null;
+   var undoStack = [];
 
    var designs = [
     {
@@ -869,7 +874,10 @@
      .data(rows)
      .pagingStep((d) => 5)
      .minPagingVisibleNodes((d) => 3)
-     .onNodeClick((d) => console.log("ok"));
+     .onNodeClick((d) => {
+      selectedNodeId = String(d.id);
+      setStatus(`Selecionado: ${nodeLabel(d.id)}`);
+     });
 
     design.apply(chart);
     chart.render();
@@ -895,8 +903,29 @@
     return root ? String(root.id) : null;
    }
 
-   // Um nó que exista de fato nos dados atuais: preferimos um gestor que não
-   // seja a raiz, para que Center/Highlight tenham algo visível para mostrar.
+   function nodeExists(id) {
+    return currentData.some((row) => String(row.id) === String(id));
+   }
+
+   function pushUndo() {
+    undoStack.push(JSON.stringify(currentData));
+    if (undoStack.length > 25) undoStack.shift();
+   }
+
+   function undoLast() {
+    if (!undoStack.length) return setStatus("Nada para desfazer", true);
+    const previous = JSON.parse(undoStack.pop());
+    if (!Array.isArray(previous)) return setStatus("Histórico corrompido", true);
+    currentData = previous;
+    selectedNodeId = currentData.some((row) => String(row.id) === String(selectedNodeId))
+     ? selectedNodeId
+     : null;
+    addedIds = [];
+    renderDesign();
+    chart.fit();
+    setStatus("Última alteração desfeita");
+   }
+
    function focusId() {
     const root = rootId();
     const parents = new Set(
@@ -910,64 +939,150 @@
     return other ? String(other.id) : root;
    }
 
+   function getSelectedNodeId() {
+    if (selectedNodeId && nodeExists(selectedNodeId)) return selectedNodeId;
+    const fallback = focusId();
+    if (fallback) {
+     selectedNodeId = fallback;
+     return fallback;
+    }
+    return null;
+   }
+
    function centerFocusNode() {
-    const id = focusId();
-    if (!id) return setStatus("Não há nós para centralizar", true);
+    const id = getSelectedNodeId();
+    if (!id) return setStatus("Clique em um nó para selecioná-lo antes de centralizar", true);
     chart.setCentered(id).render();
-    setStatus(`Nó ${id} centralizado`);
+    const label = nodeLabel(id);
+    setStatus(`Centralizado em ${label}`);
    }
 
    function highlightFocusNode() {
-    const id = focusId();
-    if (!id) return setStatus("Não há nós para destacar", true);
-    chart.setHighlighted(id).render();
-    setStatus(`Nó ${id} destacado`);
+    const id = getSelectedNodeId();
+    if (!id) return setStatus("Clique em um nó para selecioná-lo antes de destacar", true);
+    chart.clearHighlighting().setHighlighted(id).render();
+    const label = nodeLabel(id);
+    setStatus(`Nó destacado: ${label}`);
    }
 
    function highlightPathToRoot() {
-    const id = focusId();
-    if (!id) return setStatus("Não há nós para destacar", true);
-    chart.setUpToTheRootHighlighted(id).render();
-    setStatus(`Caminho de ${id} até a raiz destacado`);
+    const id = getSelectedNodeId();
+    if (!id) return setStatus("Clique em um nó antes de destacar o caminho", true);
+    chart.clearHighlighting().setUpToTheRootHighlighted(id).render();
+    const label = nodeLabel(id);
+    setStatus(`Caminho até a raiz destacado: ${label}`);
+   }
+
+   function clearHighlighting() {
+    if (!chart) return setStatus("Carregue dados antes de limpar destaques", true);
+    chart.clearHighlighting().render();
+    setStatus("Destaques removidos");
+   }
+
+   function nodeLabel(id) {
+    const row = currentData.find((r) => String(r.id) === String(id));
+    if (!row) return `#${id}`;
+    const fullName = `${row.name || ""} ${row.lastName || ""}`.trim() || `(sem nome)`;
+    return `#${id} • ${fullName}${row.position ? " — " + row.position : ""}`;
+   }
+
+   function chartFit() {
+    if (!chart) return setStatus("Carregue dados antes de ajustar à tela", true);
+    chart.fit();
+    setStatus("Visão ajustada à tela");
+   }
+
+   function toggleFullscreen() {
+    const el = document.querySelector(".chart-wrapper");
+    if (!el) return;
+    if (!document.fullscreenElement) {
+     (el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen && el.webkitRequestFullscreen());
+     setStatus("Modo tela cheia ativado");
+    } else {
+     (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen && document.webkitExitFullscreen());
+     setStatus("Modo tela cheia desativado");
+    }
+   }
+
+   function cycleLayout() {
+    if (!chart) return setStatus("Carregue dados antes de trocar layout", true);
+    const layouts = ["right", "bottom", "left", "top"];
+    chart.layout(layouts[index++ % layouts.length]).render().fit();
+    setStatus(`Layout: ${layouts[(index - 1 + layouts.length) % layouts.length]}`);
+   }
+
+   function safeCall(method, label) {
+    if (!chart) return setStatus(`Carregue dados antes de ${label.toLowerCase()}`, true);
+    if (typeof chart[method] === "function") {
+     chart[method]();
+     setStatus(label);
+    } else {
+     setStatus(`${label} indisponível nesta versão`, true);
+    }
+   }
+
+   function safeExportImg(full) {
+    if (!chart) return setStatus("Carregue dados antes de exportar", true);
+    chart.exportImg(full ? { full: true } : undefined);
+    setStatus(full ? "PNG completo exportado" : "PNG exportado");
+   }
+
+   function safeExportSvg() {
+    if (!chart) return setStatus("Carregue dados antes de exportar SVG", true);
+    chart.exportSvg();
+    setStatus("SVG exportado");
    }
 
    function addSampleNode() {
-    const parentId = rootId();
+    const parentId = getSelectedNodeId() || rootId();
     if (!parentId) return setStatus("Carregue dados antes de adicionar um nó", true);
     const id = "novo-" + Date.now();
+    const position = prompt("Cargo do novo colaborador?", "Analista") || "Colaborador";
+    const name = prompt("Nome do novo colaborador?", "Novo Colaborador") || "Novo";
+    pushUndo();
     currentData.push({
-     id: id,
-     parentId: parentId,
-     name: "Novo",
-     lastName: "Colaborador",
-     position: "Cargo",
-     department_name: "Equipe",
+     id,
+     parentId,
+     name,
+     lastName: "",
+     position,
      email: "",
+     department_name: nodeExists(parentId) ? (currentData.find((r) => String(r.id) === String(parentId))?.department_name || "Equipe") : "Equipe",
      image: ""
     });
     addedIds.push(id);
+    selectedNodeId = id;
     renderDesign();
     chart.fit();
-    setStatus(`Nó ${id} adicionado sob ${parentId}`);
+    setStatus(`Nó adicionado: ${nodeLabel(id)}`);
    }
 
    function removeSampleNode() {
     if (!currentData.length) return setStatus("Não há nós para remover", true);
-    let id = addedIds.pop();
-    if (!id) {
-     const parents = new Set(
-      currentData.map((row) => String(row.parentId || "")).filter(Boolean)
-     );
-     const leaf = currentData.find((row) => !parents.has(String(row.id)));
-     id = leaf && String(leaf.id);
+    const targetId = getSelectedNodeId();
+    if (!targetId || !nodeExists(targetId)) return setStatus("Clique em um nó antes de remover", true);
+    const idsToRemove = new Set([String(targetId)]);
+    let changed = true;
+    while (changed) {
+     changed = false;
+     for (const row of currentData) {
+      if (idsToRemove.has(String(row.parentId)) && !idsToRemove.has(String(row.id))) {
+       idsToRemove.add(String(row.id));
+       changed = true;
+      }
+     }
     }
-    if (!id) return setStatus("Não há nó para remover", true);
-    const before = currentData.length;
-    currentData = currentData.filter((row) => String(row.id) !== String(id));
-    if (currentData.length === before) return setStatus(`Nó ${id} não encontrado`, true);
+    const label = nodeLabel(targetId);
+    if (!confirm(`Remover ${label} e ${idsToRemove.size - 1} subordinado(s)?`)) {
+     return;
+    }
+    pushUndo();
+    currentData = currentData.filter((row) => !idsToRemove.has(String(row.id)));
+    addedIds = addedIds.filter((aid) => !idsToRemove.has(String(aid)));
+    selectedNodeId = null;
     renderDesign();
     chart.fit();
-    setStatus(`Nó ${id} removido`);
+    setStatus(`Removido: ${label} (${idsToRemove.size} nó(s))`);
    }
 
    function downloadPdf() {
@@ -1059,6 +1174,8 @@
       validateRows(validRows);
       currentData = validRows;
       addedIds = [];
+      selectedNodeId = null;
+      undoStack.length = 0;
       renderDesign();
       chart.fit();
       setStatus(`${validRows.length} registros carregados de ${file.name}`);
