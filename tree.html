@@ -51,10 +51,26 @@
     <input
      type="file"
      id="csv-input"
-     accept=".csv,text/csv"
-     title="Selecione um arquivo CSV"
+     accept=".csv,text/csv,.json,application/json"
+     title="Selecione um arquivo CSV ou JSON"
     />
    </label>
+
+   <a
+    class="btn file-upload__label"
+    href="misc/modelo-organograma.csv"
+    download="modelo-organograma.csv"
+    title="Baixar modelo de CSV/JSON"
+   >
+    <i class="fas fa-download"></i> Modelo
+   </a>
+
+   <button class="btn" onclick="downloadCsv()" title="Exportar o organograma como CSV">
+    <i class="fas fa-file-export"></i> Exportar CSV
+   </button>
+   <button class="btn" onclick="downloadJson()" title="Exportar o organograma como JSON">
+    <i class="fas fa-file-code"></i> Exportar JSON
+   </button>
 
    <label class="theme-picker">
     <i class="fas fa-palette"></i>
@@ -795,7 +811,8 @@
      positionName: row.position || "",
      imageUrl: row.image || "",
      area: row.department_name || "",
-     office: row.location_state || row.department_name || ""
+     office: row.location_state || row.department_name || "",
+     email: row.email || ""
     });
    }
 
@@ -803,6 +820,38 @@
     const el = document.querySelector(".chart-container");
     const rect = el.getBoundingClientRect();
     return Math.max(400, Math.round(rect.height));
+   }
+
+   function attachEmailOverlay() {
+    const nodes = document.querySelectorAll(".chart-container g.node");
+    nodes.forEach((node) => {
+     const inner = node.querySelector(".node-foreign-object-div");
+     if (!inner || inner.querySelector(".orgchart-email-overlay")) return;
+     const idMatch = (node.textContent || "").match(/#\s*(\d+)/);
+     if (!idMatch) return;
+     const nodeId = idMatch[1];
+     const row = currentData.find((r) => String(r.id) === String(nodeId));
+     if (!row) return;
+     const overlay = document.createElement("div");
+     overlay.className = "orgchart-email-overlay";
+     overlay.textContent = row.email ? `✉ ${row.email}` : "✉ sem e-mail";
+     overlay.style.position = "absolute";
+     overlay.style.right = "6px";
+     overlay.style.bottom = "6px";
+     overlay.style.padding = "2px 6px";
+     overlay.style.borderRadius = "10px";
+     overlay.style.background = "rgba(15,23,42,.78)";
+     overlay.style.color = "#fff";
+     overlay.style.font = "9px 'Inter','Helvetica',sans-serif";
+     overlay.style.pointerEvents = "none";
+     overlay.style.maxWidth = "200px";
+     overlay.style.overflow = "hidden";
+     overlay.style.textOverflow = "ellipsis";
+     overlay.style.whiteSpace = "nowrap";
+     overlay.style.zIndex = "5";
+     inner.style.position = "relative";
+     inner.appendChild(overlay);
+    });
    }
 
    function renderDesign() {
@@ -824,6 +873,8 @@
 
     design.apply(chart);
     chart.render();
+    setTimeout(attachEmailOverlay, 50);
+    setTimeout(attachEmailOverlay, 250);
     if (design.after) design.after(chart);
    }
 
@@ -891,18 +942,19 @@
      lastName: "Colaborador",
      position: "Cargo",
      department_name: "Equipe",
+     email: "",
      image: ""
     });
     addedIds.push(id);
     renderDesign();
+    chart.fit();
     setStatus(`Nó ${id} adicionado sob ${parentId}`);
    }
 
    function removeSampleNode() {
+    if (!currentData.length) return setStatus("Não há nós para remover", true);
     let id = addedIds.pop();
     if (!id) {
-     // sem nós adicionados nesta sessão: remove uma folha, para não derrubar
-     // uma subárvore inteira sem o usuário pedir
      const parents = new Set(
       currentData.map((row) => String(row.parentId || "")).filter(Boolean)
      );
@@ -914,6 +966,7 @@
     currentData = currentData.filter((row) => String(row.id) !== String(id));
     if (currentData.length === before) return setStatus(`Nó ${id} não encontrado`, true);
     renderDesign();
+    chart.fit();
     setStatus(`Nó ${id} removido`);
    }
 
@@ -982,32 +1035,77 @@
     }
    }
 
-   function loadCsvFile(file) {
-    if (!file || !/\.csv$/i.test(file.name)) {
-     setStatus("Selecione um arquivo .csv válido", true);
-     return;
+   function parseInput(text, name) {
+    const ext = (name || "").toLowerCase();
+    if (ext.endsWith(".json")) {
+     const json = JSON.parse(text);
+     const rows = Array.isArray(json) ? json : Array.isArray(json.nodes) ? json.nodes : null;
+     if (!rows) throw new Error("JSON precisa ser uma lista de nós ou ter a chave 'nodes'");
+     return rows;
     }
+    return d3.csvParse(text);
+   }
 
+   function loadDataFile(file) {
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
      try {
-      const rows = d3.csvParse(event.target.result);
-      const validRows = rows.filter((row) => row.id && row.name);
+      const rows = parseInput(event.target.result, file.name);
+      const validRows = rows.filter((row) => row.id && (row.name || row.lastName));
       if (!validRows.length) {
-       throw new Error("O CSV precisa conter as colunas id e name");
+       throw new Error("O arquivo precisa conter pelo menos id e nome");
       }
       validateRows(validRows);
       currentData = validRows;
       addedIds = [];
       renderDesign();
       chart.fit();
-      setStatus(`${validRows.length} funcionários carregados de ${file.name}`);
+      setStatus(`${validRows.length} registros carregados de ${file.name}`);
      } catch (error) {
-      setStatus(error.message || "Não foi possível ler o CSV", true);
+      setStatus(error.message || "Não foi possível ler o arquivo", true);
      }
     };
     reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
     reader.readAsText(file, "UTF-8");
+   }
+
+   const CSV_COLUMNS = ["id", "parentId", "name", "lastName", "position", "email", "department_name", "location_state", "image"];
+
+   function exportRows() {
+    return CSV_COLUMNS.map((column) => `"${column.replace(/"/g, '""')}"`).join(",")
+     + "\n"
+     + currentData.map((row) =>
+      CSV_COLUMNS.map((column) => {
+       const value = row[column] === undefined || row[column] === null ? "" : String(row[column]);
+       return `"${value.replace(/"/g, '""')}"`;
+      }).join(",")
+     ).join("\n");
+   }
+
+   function downloadCsv() {
+    if (!currentData.length) return setStatus("Não há dados para exportar", true);
+    const blob = new Blob([exportRows()], { type: "text/csv;charset=utf-8" });
+    triggerDownload(blob, "organograma.csv");
+    setStatus(`Exportado organograma.csv (${currentData.length} registros)`);
+   }
+
+   function downloadJson() {
+    if (!currentData.length) return setStatus("Não há dados para exportar", true);
+    const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: "application/json" });
+    triggerDownload(blob, "organograma.json");
+    setStatus(`Exportado organograma.json (${currentData.length} registros)`);
+   }
+
+   function triggerDownload(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
    }
 
    function setStatus(message, isError) {
@@ -1021,7 +1119,7 @@
    }
 
    document.getElementById("csv-input").addEventListener("change", (event) => {
-    loadCsvFile(event.target.files[0]);
+    loadDataFile(event.target.files[0]);
     event.target.value = "";
    });
 
@@ -1060,7 +1158,7 @@
     event.preventDefault();
     dragDepth = 0;
     dropOverlay.classList.remove("active");
-    loadCsvFile(event.dataTransfer.files[0]);
+    loadDataFile(event.dataTransfer.files[0]);
    });
   </script>
 

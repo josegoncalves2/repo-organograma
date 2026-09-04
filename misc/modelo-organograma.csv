@@ -1,0 +1,7 @@
+id,parentId,name,lastName,position,email,department_name,location_state,image
+1,,Maria,Silva,Diretora Executiva,maria.silva@empresa.com,Diretoria,SP,
+2,1,Joao,Santos,Gerente de Engenharia,joao.santos@empresa.com,Engenharia,SP,
+3,1,Ana,Pereira,Gerente Comercial,ana.pereira@empresa.com,Comercial,RJ,
+4,2,Pedro,Oliveira,Engenheiro Senior,pedro.oliveira@empresa.com,Engenharia,SP,
+5,2,Carla,Rodrigues,Engenheira Plena,carla.rodrigues@empresa.com,Engenharia,SP,
+6,3,Lucas,Almeida,Analista Comercial,lucas.almeida@empresa.com,Comercial,RJ,

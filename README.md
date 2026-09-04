@@ -82,19 +82,34 @@ docker compose down            # parar e remover
 - App: http://localhost:8080
 - Health: http://localhost:8080/healthz → `ok`
 
-## Carregar um CSV
+## Carregar CSV ou JSON
 
-Na aplicação, use **Carregar CSV** para selecionar um arquivo ou arraste o CSV
-para a tela. O arquivo precisa ter pelo menos estas colunas:
+Na aplicação, use **Carregar CSV** (aceita `.csv` ou `.json`) ou arraste o
+arquivo para a tela. O arquivo precisa ter pelo menos `id` e `name`. Um modelo
+deve ser baixado pelo botão **Modelo**.
+
+Formato CSV (inclui coluna `email`):
 
 ```csv
-id,parentId,name,lastName,position,department_name,image
-1,,Diretoria,Executiva,CEO,Empresa,
-2,1,João,Silva,Analista,TI,
+id,parentId,name,lastName,position,email,department_name,location_state,image
+1,,Maria,Silva,Diretora,maria.silva@empresa.com,Diretoria,SP,
+2,1,João,Santos,Gerente,joao.santos@empresa.com,Engenharia,SP,
 ```
 
-`id` identifica o funcionário, `parentId` liga o funcionário ao gestor e as
-demais colunas alimentam o card. O CSV é processado no navegador e não é
-enviado para nenhum servidor.
+Formato JSON: lista de objetos ou `{ "nodes": [...] }` com a mesma estrutura.
+
+## Exportar
+
+- **Exportar CSV** baixa o organograma atual com as colunas `id`, `parentId`,
+  `name`, `lastName`, `position`, `email`, `department_name`, `location_state`,
+  `image`.
+- **Exportar JSON** baixa o organograma atual como array JSON.
+
+## Editar
+
+- **Add Node** cria um novo nó sob a raiz.
+- **Remove** remove o último nó adicionado (ou uma folha da árvore).
+
+Cada nó renderizado mostra o e-mail em um selo no canto inferior direito.
 # repo-organograma
 # repo-organograma
