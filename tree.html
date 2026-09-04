@@ -823,8 +823,14 @@
 
    function chartHeight() {
     const el = document.querySelector(".chart-container");
-    const rect = el.getBoundingClientRect();
-    return Math.max(400, Math.round(rect.height));
+    const rect = el ? el.getBoundingClientRect() : { height: 1100 };
+    return Math.max(800, Math.round(rect.height || 1100));
+   }
+
+   function refreshChart() {
+    if (!chart) return;
+    chart.svgHeight(chartHeight()).render().fit();
+    setTimeout(attachEmailOverlay, 100);
    }
 
    function attachEmailOverlay() {
@@ -880,7 +886,7 @@
      });
 
     design.apply(chart);
-    chart.render();
+    chart.render().fit();
     setTimeout(attachEmailOverlay, 50);
     setTimeout(attachEmailOverlay, 250);
     if (design.after) design.after(chart);
@@ -952,30 +958,31 @@
    function centerFocusNode() {
     const id = getSelectedNodeId();
     if (!id) return setStatus("Clique em um nó para selecioná-lo antes de centralizar", true);
-    chart.setCentered(id).render();
-    const label = nodeLabel(id);
-    setStatus(`Centralizado em ${label}`);
+    chart.setCentered(id).render().fit();
+    requestAnimationFrame(attachEmailOverlay);
+    setStatus(`Centralizado em ${nodeLabel(id)}`);
    }
 
    function highlightFocusNode() {
     const id = getSelectedNodeId();
     if (!id) return setStatus("Clique em um nó para selecioná-lo antes de destacar", true);
-    chart.clearHighlighting().setHighlighted(id).render();
-    const label = nodeLabel(id);
-    setStatus(`Nó destacado: ${label}`);
+    chart.clearHighlighting().setHighlighted(id).render().fit();
+    requestAnimationFrame(attachEmailOverlay);
+    setStatus(`Nó destacado: ${nodeLabel(id)}`);
    }
 
    function highlightPathToRoot() {
     const id = getSelectedNodeId();
     if (!id) return setStatus("Clique em um nó antes de destacar o caminho", true);
-    chart.clearHighlighting().setUpToTheRootHighlighted(id).render();
-    const label = nodeLabel(id);
-    setStatus(`Caminho até a raiz destacado: ${label}`);
+    chart.clearHighlighting().setUpToTheRootHighlighted(id).render().fit();
+    requestAnimationFrame(attachEmailOverlay);
+    setStatus(`Caminho até a raiz destacado: ${nodeLabel(id)}`);
    }
 
    function clearHighlighting() {
     if (!chart) return setStatus("Carregue dados antes de limpar destaques", true);
-    chart.clearHighlighting().render();
+    chart.clearHighlighting().render().fit();
+    requestAnimationFrame(attachEmailOverlay);
     setStatus("Destaques removidos");
    }
 
@@ -989,6 +996,7 @@
    function chartFit() {
     if (!chart) return setStatus("Carregue dados antes de ajustar à tela", true);
     chart.fit();
+    requestAnimationFrame(attachEmailOverlay);
     setStatus("Visão ajustada à tela");
    }
 
@@ -1015,6 +1023,8 @@
     if (!chart) return setStatus(`Carregue dados antes de ${label.toLowerCase()}`, true);
     if (typeof chart[method] === "function") {
      chart[method]();
+     chart.fit();
+     requestAnimationFrame(attachEmailOverlay);
      setStatus(label);
     } else {
      setStatus(`${label} indisponível nesta versão`, true);
