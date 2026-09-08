@@ -176,6 +176,16 @@
      <i class="fas fa-user-minus"></i> Remove
     </button>
    </div>
+
+   <button
+    class="btn btn--danger"
+    id="btn-descartar"
+    onclick="descartarLocal()"
+    title="Descartar as alterações salvas neste navegador e voltar ao organograma original"
+    hidden
+   >
+    <i class="fas fa-undo"></i> Descartar alterações
+   </button>
   </div>
 
   <div class="modal" id="editor" hidden>
@@ -780,13 +790,78 @@
     if (design.after) design.after(chart);
    }
 
-   d3.csv("misc/data.csv").then((dataFlattened) => {
-    currentData = dataFlattened;
+   // --------------------------- persistência local ---------------------------
+   // Sem isto, adicionar/editar/remover é perdido no primeiro F5: a página
+   // sempre recarregava o CSV do servidor e jogava fora o trabalho.
+
+   const CHAVE_SALVA = "organograma:dados";
+
+   function salvarLocal() {
+    try {
+     localStorage.setItem(CHAVE_SALVA, JSON.stringify(currentData));
+     marcarAlterado(true);
+     return true;
+    } catch (erro) {
+     marcarAlterado(false);
+     setStatus(
+      "As alterações não puderam ser salvas neste navegador — exporte o CSV para não perdê-las",
+      true
+     );
+     return false;
+    }
+   }
+
+   function lerLocal() {
+    try {
+     const cru = localStorage.getItem(CHAVE_SALVA);
+     if (!cru) return null;
+     const linhas = JSON.parse(cru);
+     return Array.isArray(linhas) && linhas.length ? linhas : null;
+    } catch (erro) {
+     return null;
+    }
+   }
+
+   function marcarAlterado(alterado) {
+    document.getElementById("btn-descartar").hidden = !alterado;
+   }
+
+   function descartarLocal() {
+    if (
+     !confirm(
+      "Descartar todas as alterações salvas neste navegador e recarregar o organograma original?"
+     )
+    )
+     return;
+    try {
+     localStorage.removeItem(CHAVE_SALVA);
+    } catch (erro) {}
+    location.reload();
+   }
+
+   function iniciar(linhas, mensagem) {
+    currentData = linhas;
     buildDesignMenu();
     renderDesign();
     afterRender();
-    setStatus(`Pronto • ${currentData.length} pessoas • clique em um card para selecioná-lo`);
-   });
+    setStatus(mensagem);
+   }
+
+   const salvos = lerLocal();
+   if (salvos) {
+    marcarAlterado(true);
+    iniciar(
+     salvos,
+     `${salvos.length} pessoas • alterações restauradas deste navegador`
+    );
+   } else {
+    d3.csv("misc/data.csv").then((dataFlattened) => {
+     iniciar(
+      dataFlattened,
+      `Pronto • ${dataFlattened.length} pessoas • clique em um card para selecioná-lo`
+     );
+    });
+   }
 
    // ------------------------- ações da toolbar -------------------------
 
@@ -817,6 +892,7 @@
       ? selectedNodeId
       : null
     );
+    salvarLocal();
     renderDesign();
     fitLegivel();
     afterRender();
@@ -949,10 +1025,144 @@
      image: ""
     });
     selectNode(id);
+    salvarLocal();
     renderDesign();
     chart.setCentered(id).render(); fitLegivel(id);
     afterRender();
     setStatus(`Adicionado sob ${nodeLabel(parentId)}: ${name} — ${position}`);
+   }
+
+   // ----------------------------- editor de card -----------------------------
+
+   var editandoId = null;
+   const CAMPOS_EDITAVEIS = ["name", "lastName", "position", "email", "department_name", "image"];
+
+   function abrirEditor(id) {
+    const alvo = id !== undefined && id !== null ? String(id) : requireSelection("editar");
+    if (!alvo) return;
+    const row = currentData.find((r) => String(r.id) === String(alvo));
+    if (!row) return setStatus("Colaborador não encontrado", true);
+
+    editandoId = String(alvo);
+    CAMPOS_EDITAVEIS.forEach((campo) => {
+     document.getElementById("ed-" + campo).value = row[campo] || "";
+    });
+    atualizarPreview(row.image);
+    montarSelectChefe(editandoId, row.parentId);
+    document.getElementById("ed-erro").textContent = "";
+    document.getElementById("editor").hidden = false;
+    document.getElementById("ed-name").focus();
+    setStatus(`Editando ${nodeLabel(editandoId)}`);
+   }
+
+   function fecharEditor() {
+    document.getElementById("editor").hidden = true;
+    editandoId = null;
+   }
+
+   // A raiz não tem chefe, e ninguém pode responder a um subordinado seu —
+   // isso quebraria a árvore em um ciclo e o organograma sumiria da tela.
+   function montarSelectChefe(id, parentIdAtual) {
+    const select = document.getElementById("ed-parentId");
+    const proibidos = descendantsOf(id);
+    const ehRaiz = String(id) === String(rootId());
+    select.innerHTML = "";
+    select.disabled = ehRaiz;
+
+    if (ehRaiz) {
+     select.appendChild(new Option("— é a raiz do organograma —", ""));
+     select.value = "";
+     return;
+    }
+
+    currentData
+     .filter((row) => !proibidos.has(String(row.id)))
+     .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "pt-BR"))
+     .forEach((row) => {
+      const nome = `${row.name || ""} ${row.lastName || ""}`.trim() || `#${row.id}`;
+      select.appendChild(new Option(`${nome}${row.position ? " — " + row.position : ""}`, row.id));
+     });
+    select.value = String(parentIdAtual || "");
+   }
+
+   function atualizarPreview(src) {
+    const img = document.getElementById("ed-preview");
+    const vazio =
+     "data:image/svg+xml;utf8," +
+     encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="76" height="76"><rect width="76" height="76" fill="#e2e8f0"/><circle cx="38" cy="30" r="13" fill="#94a3b8"/><path d="M12 76c0-16 12-24 26-24s26 8 26 24z" fill="#94a3b8"/></svg>`
+     );
+    img.src = src || vazio;
+   }
+
+   function limparFoto() {
+    document.getElementById("ed-image").value = "";
+    atualizarPreview("");
+   }
+
+   // A foto vira data URI para viajar junto no CSV/JSON exportado. Sem o
+   // redimensionamento, uma foto de celular sozinha passaria de 1 MB no arquivo.
+   function fotoParaDataUri(file, aoTerminar) {
+    const reader = new FileReader();
+    reader.onload = () => {
+     const img = new Image();
+     img.onload = () => {
+      const lado = 128;
+      const canvas = document.createElement("canvas");
+      canvas.width = lado;
+      canvas.height = lado;
+      const corte = Math.min(img.width, img.height);
+      canvas
+       .getContext("2d")
+       .drawImage(img, (img.width - corte) / 2, (img.height - corte) / 2, corte, corte, 0, 0, lado, lado);
+      aoTerminar(canvas.toDataURL("image/jpeg", 0.85));
+     };
+     img.onerror = () => setStatus("Não foi possível ler essa imagem", true);
+     img.src = reader.result;
+    };
+    reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
+    reader.readAsDataURL(file);
+   }
+
+   function salvarEditor() {
+    if (!editandoId) return;
+    const row = currentData.find((r) => String(r.id) === String(editandoId));
+    if (!row) return setStatus("Colaborador não encontrado", true);
+
+    const valores = {};
+    CAMPOS_EDITAVEIS.forEach((campo) => {
+     valores[campo] = document.getElementById("ed-" + campo).value.trim();
+    });
+    const erro = document.getElementById("ed-erro");
+    if (!valores.name) {
+     erro.textContent = "O nome é obrigatório";
+     return document.getElementById("ed-name").focus();
+    }
+    if (!valores.position) {
+     erro.textContent = "O cargo é obrigatório";
+     return document.getElementById("ed-position").focus();
+    }
+
+    const select = document.getElementById("ed-parentId");
+    const novoChefe = select.disabled ? row.parentId : select.value;
+    const mudouChefe = String(novoChefe || "") !== String(row.parentId || "");
+
+    pushUndo();
+    Object.assign(row, valores);
+    if (mudouChefe) row.parentId = novoChefe;
+
+    fecharEditor();
+    selectNode(editandoId);
+    salvarLocal();
+    renderDesign();
+    chart.setCentered(row.id).render();
+    fitLegivel(row.id);
+    afterRender();
+    setStatus(
+     mudouChefe
+      ? `Salvo: ${nodeLabel(row.id)} agora responde a ${nodeLabel(novoChefe)}`
+      : `Salvo: ${nodeLabel(row.id)}`
+    );
    }
 
    // Continua a numeração do CSV em vez de um id sintético: quem adiciona uma
@@ -1003,6 +1213,7 @@
     pushUndo();
     currentData = currentData.filter((row) => !idsToRemove.has(String(row.id)));
     selectNode(null);
+    salvarLocal();
     renderDesign();
     fitLegivel();
     afterRender();
@@ -1106,6 +1317,7 @@
       currentData = validRows;
       selectNode(null);
       undoStack.length = 0;
+      salvarLocal();
       renderDesign();
       fitLegivel();
       afterRender();
@@ -1165,6 +1377,49 @@
       : "#10b981";
     }
    }
+
+   document.getElementById("ed-arquivo").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    fotoParaDataUri(file, (dataUri) => {
+     document.getElementById("ed-image").value = dataUri;
+     atualizarPreview(dataUri);
+     setStatus(`Foto carregada (${Math.round(dataUri.length / 1024)} KB)`);
+    });
+   });
+
+   document.getElementById("ed-image").addEventListener("input", (event) => {
+    atualizarPreview(event.target.value.trim());
+   });
+
+   // Sem isso o aviso de campo obrigatório fica na tela depois de corrigido.
+   document.querySelectorAll("#editor input, #editor select").forEach((campo) => {
+    campo.addEventListener("input", () => {
+     document.getElementById("ed-erro").textContent = "";
+    });
+   });
+
+   document.getElementById("editor").addEventListener("click", (event) => {
+    if (event.target.id === "editor") fecharEditor();
+   });
+
+   document.addEventListener("keydown", (event) => {
+    if (document.getElementById("editor").hidden) return;
+    if (event.key === "Escape") fecharEditor();
+    if (event.key === "Enter" && event.target.tagName === "INPUT") salvarEditor();
+   });
+
+   // A lib só expõe callback de clique simples, então o duplo clique é
+   // capturado por delegação no container.
+   document.querySelector(".chart-wrapper").addEventListener("dblclick", (event) => {
+    const node = event.target.closest("g.node");
+    if (!node) return;
+    const id = nodeIdFromElement(node);
+    if (id === null) return;
+    selectNode(id);
+    abrirEditor(id);
+   });
 
    document.getElementById("csv-input").addEventListener("change", (event) => {
     loadDataFile(event.target.files[0]);
