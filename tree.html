@@ -228,8 +228,13 @@
      </label>
 
      <label class="campo campo--largo">
-      <span>Cargo <b>*</b></span>
+      <span>Cargo / Nome da unidade <b>*</b></span>
       <input type="text" id="ed-position" />
+     </label>
+
+     <label class="campo campo--largo">
+      <span>Tipo <b>*</b></span>
+      <select id="ed-type"></select>
      </label>
 
      <label class="campo">
@@ -261,7 +266,6 @@
   <div class="status-bar">
    <span class="status-bar__dot"></span>
    <span id="status-msg">Carregando…</span>
-   <span class="legenda" id="legenda"></span>
   </div>
 
   <div class="chart-wrapper">
@@ -280,17 +284,16 @@
   <script src="build/d3.v7.min.js"></script>
   <script src="build/d3-org-chart.js"></script>
   <script src="build/d3-flextree.js"></script>
+  <script src="build/vendor/pieChart.js"></script>
 
   <script>
    // ---------------------------------------------------------------------
-   // Os 5 designs abaixo são portes dos exemplos de github.com/bumbeishvili/
+   // Os 7 designs abaixo são portes dos exemplos de github.com/bumbeishvili/
    // org-chart, adaptados para as colunas de misc/data.csv.
    //
-   // Os designs "Futuristic" e "Prev version" foram removidos: ambos exibiam
-   // dados que não existem no CSV — barras de progresso e percentuais
-   // gerados por Math.random(), largura/altura de card aleatórias e um texto
-   // institucional fixo em inglês. Num organograma de RH isso é dado falso
-   // apresentado como se fosse informação da pessoa.
+   // Em Futuristic e Prev version, os números que vinham de Math.random()
+   // (barras de progresso, percentuais, largura e canto do card) foram
+   // trocados por dados reais do arquivo. O desenho dos dois é o original.
    // ---------------------------------------------------------------------
 
    var chart;
@@ -298,6 +301,139 @@
    var currentData = [];
    var selectedNodeId = null;
    var undoStack = [];
+   var novoNoPendente = null;
+
+   // =====================================================================
+   // TAXONOMIA DE ORGAOS — enumerada, nao booleana.
+   //
+   // As 15 classes e o rank de cada uma foram MEDIDOS em
+   // organograma-completo.csv (629 linhas). Nada aqui foi arbitrado:
+   //   rank 0  PREFEITURA ....... profundidade 0       (1 no)
+   //   rank 1  SECRETARIA ....... profundidade 1      (14 nos)
+   //           GABINETE ......... profundidade 1       (1 no)
+   //           CONTROLADORIA .... profundidade 1       (1 no)
+   //   rank 2  COORDENADORIA .... profundidade 2      (16 nos)
+   //           ASSESSOR ......... profundidade 2      (15 nos)
+   //           FUNDO ............ profundidade 2       (5 nos)
+   //           CHEFE/CONSELHO/GUARDA . profundidade 2  (1 cada)
+   //   rank 3  DIVISAO .......... profundidade 2-4    (73 nos)
+   //           FUNDEB/CORPO ..... profundidade 3       (1 cada)
+   //   rank 4  SETOR ............ profundidade 3-9   (168 nos)
+   //   rank 5  COLABORADOR ...... profundidade 2-10  (330 nos)
+   //
+   // Cada classe tem identidade visual PROPRIA: nenhuma compartilha
+   // preenchimento, borda, forma de selo nem rotulo com outra.
+   // COLABORADOR nao e SETOR, nao e DIVISAO, nao e SECRETARIA.
+   // =====================================================================
+
+   const TIPOS = {
+    PREFEITURA:    { rotulo:"PREFEITURA",    rank:0, bg:"#1C1917", borda:"#D4A017", texto:"#FDE68A", selo:"#D4A017", seloTexto:"#1C1917", forma:"escudo",  raio:4  },
+    SECRETARIA:    { rotulo:"SECRETARIA",    rank:1, bg:"#EEF2FF", borda:"#312E81", texto:"#312E81", selo:"#312E81", seloTexto:"#FFFFFF", forma:"bloco",   raio:6  },
+    GABINETE:      { rotulo:"GABINETE",      rank:1, bg:"#F5F3FF", borda:"#5B21B6", texto:"#4C1D95", selo:"#5B21B6", seloTexto:"#FFFFFF", forma:"bloco",   raio:6  },
+    CONTROLADORIA: { rotulo:"CONTROLADORIA", rank:1, bg:"#F0FDFA", borda:"#115E59", texto:"#134E4A", selo:"#115E59", seloTexto:"#FFFFFF", forma:"bloco",   raio:6  },
+    COORDENADORIA: { rotulo:"COORDENADORIA", rank:2, bg:"#EFF6FF", borda:"#1D4ED8", texto:"#1E3A8A", selo:"#1D4ED8", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    ASSESSOR:      { rotulo:"ASSESSOR",      rank:2, bg:"#ECFEFF", borda:"#0E7490", texto:"#155E75", selo:"#0E7490", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    FUNDO:         { rotulo:"FUNDO",         rank:2, bg:"#F0FDF4", borda:"#15803D", texto:"#166534", selo:"#15803D", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    CHEFE:         { rotulo:"CHEFE",         rank:2, bg:"#F8FAFC", borda:"#334155", texto:"#1E293B", selo:"#334155", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    CONSELHO:      { rotulo:"CONSELHO",      rank:2, bg:"#FFFBEB", borda:"#92400E", texto:"#78350F", selo:"#92400E", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    GUARDA:        { rotulo:"GUARDA",        rank:2, bg:"#FEF2F2", borda:"#991B1B", texto:"#7F1D1D", selo:"#991B1B", seloTexto:"#FFFFFF", forma:"chanfro", raio:8  },
+    DIVISAO:       { rotulo:"DIVISAO",       rank:3, bg:"#FFF7ED", borda:"#C2410C", texto:"#9A3412", selo:"#C2410C", seloTexto:"#FFFFFF", forma:"faixa",   raio:10 },
+    FUNDEB:        { rotulo:"FUNDEB",        rank:3, bg:"#F7FEE7", borda:"#4D7C0F", texto:"#3F6212", selo:"#4D7C0F", seloTexto:"#FFFFFF", forma:"faixa",   raio:10 },
+    CORPO:         { rotulo:"CORPO",         rank:3, bg:"#FFF1F2", borda:"#BE123C", texto:"#9F1239", selo:"#BE123C", seloTexto:"#FFFFFF", forma:"faixa",   raio:10 },
+    SETOR:         { rotulo:"SETOR",         rank:4, bg:"#FEFCE8", borda:"#A16207", texto:"#854D0E", selo:"#A16207", seloTexto:"#FFFFFF", forma:"aba",     raio:12 },
+    COLABORADOR:   { rotulo:"COLABORADOR",   rank:5, bg:"#FFFFFF", borda:"#94A3B8", texto:"#334155", selo:"#FFFFFF", seloTexto:"#475569", forma:"pilula",  raio:16 }
+   };
+
+   const TIPO_DESCONHECIDO = { rotulo:"UNIDADE", rank:3, bg:"#F5F5F5", borda:"#6B7280", texto:"#374151", selo:"#6B7280", seloTexto:"#FFFFFF", forma:"bloco", raio:8 };
+
+   // Acentos fora: "DIVISAO" e "DIVISAO" precisam bater com a mesma chave.
+   function normalizar(texto) {
+    return String(texto || "")
+     .normalize("NFD")
+     .replace(/[\u0300-\u036f]/g, "")
+     .trim()
+     .toUpperCase();
+   }
+
+   // Classifica UMA linha. Ordem de precedencia:
+   //   1. coluna `type` explicita, quando o arquivo traz
+   //   2. nome de pessoa preenchido -> COLABORADOR
+   //   3. primeira palavra de `position`, que e o rotulo do proprio arquivo
+   // Nao ha inferencia: se a palavra nao esta na tabela, cai em UNIDADE
+   // generica e o rotulo original e preservado no selo.
+   function classificar(row) {
+    const explicito = normalizar(row.type);
+    if (explicito && TIPOS[explicito]) return explicito;
+
+    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
+    if (pessoa) return "COLABORADOR";
+
+    const primeira = normalizar(row.position).split(/[\s,/-]+/)[0];
+    if (primeira && TIPOS[primeira]) return primeira;
+
+    return "";
+   }
+
+   function tipoDe(row) {
+    return TIPOS[classificar(row)] || TIPO_DESCONHECIDO;
+   }
+
+   function rankDe(row) {
+    return tipoDe(row).rank;
+   }
+
+   // COLABORADOR e folha por definicao: pessoa nao chefia orgao.
+   function ehColaborador(row) {
+    return classificar(row) === "COLABORADOR";
+   }
+
+   // =====================================================================
+   // VALIDACAO DE HIERARQUIA
+   // Regra unica, derivada dos ranks acima: um filho nunca pode ter rank
+   // MENOR que o do pai. SETOR (4) sob DIVISAO (3) e valido; DIVISAO (3)
+   // sob SETOR (4) nao e. COLABORADOR (5) nao pode ter filho nenhum.
+   // As violacoes sao CONTADAS e MOSTRADAS, nunca corrigidas em silencio:
+   // o arquivo do usuario e a verdade, o codigo so reporta.
+   // =====================================================================
+   var violacoesHierarquia = [];
+
+   function validarHierarquia(rows) {
+    violacoesHierarquia = [];
+    const porId = new Map(rows.map((r) => [String(r.id), r]));
+
+    for (const row of rows) {
+     const paiId = String(row.parentId || "").trim();
+     if (!paiId) continue;
+     const pai = porId.get(paiId);
+     if (!pai) continue;
+
+     const tipoFilho = tipoDe(row);
+     const tipoPai = tipoDe(pai);
+
+     if (ehColaborador(pai)) {
+      violacoesHierarquia.push({
+       id: row.id,
+       tipo: "COLABORADOR_COM_FILHO",
+       texto: `${rotuloLegivel(row)} responde a ${rotuloLegivel(pai)}, que e COLABORADOR`
+      });
+      continue;
+     }
+
+     if (tipoFilho.rank < tipoPai.rank) {
+      violacoesHierarquia.push({
+       id: row.id,
+       tipo: "RANK_INVERTIDO",
+       texto: `${tipoFilho.rotulo} "${rotuloLegivel(row)}" esta sob ${tipoPai.rotulo} "${rotuloLegivel(pai)}"`
+      });
+     }
+    }
+    return violacoesHierarquia;
+   }
+
+   function rotuloLegivel(row) {
+    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
+    return pessoa || String(row.position || "").trim() || `#${row.id}`;
+   }
 
    var designs = [
     {
@@ -309,53 +445,52 @@
      // override de layoutBindings). Sem ele, a lib cai no nodeContent padrão,
      // que é só o placeholder "Sample Node(id=…), override using…".
      apply: (c) => {
-      c.nodeHeight((d) => 104)
-       .nodeWidth((d) => 222)
+      c.nodeHeight((d) => 85 + 25)
+       .nodeWidth((d) => {
+        return 220 + 2;
+       })
        .childrenMargin((d) => 50)
        .compactMarginBetween((d) => 35)
        .compactMarginPair((d) => 30)
        .neighbourMargin((a, b) => 20)
        .nodeContent(function (d, i, arr, state) {
-        // Distinguir tipo só por tom de azul não funcionou: numa tarja de 5px,
-        // #184f95 e #256abf são o mesmo azul a olho nu. O guia de dataviz é
-        // explícito — identidade nunca pode depender só da cor. Então o tipo
-        // vai ESCRITO no card, e unidade x pessoa se separam pela forma:
-        // unidade tem faixa de cabeçalho preenchida, pessoa tem foto e fundo
-        // branco. A cor continua ordenando os níveis, mas agora é reforço.
-        const cor = d.data._cor || "#94a3b8";
-        const unidade = d.data._ehUnidade;
-        const titulo = d.data.name || "";
-        const tinta = textoSobre(cor);
+        const cores = d.data._tipo || TIPO_DESCONHECIDO;
+        const color = cores.bg;
+        const borderColor = cores.borda;
+        const textColor = cores.texto;
+        const imageDiffVert = 25 + 2;
+        return `${selo(d)}
+                <div style='width:${d.width}px;height:${
+         d.height
+        }px;padding-top:${
+         imageDiffVert - 2
+        }px;padding-left:1px;padding-right:1px'>
+                    <div style="font-family: 'Inter', sans-serif;background-color:${color};  margin-left:-1px;width:${
+         d.width - 2
+        }px;height:${
+         d.height - imageDiffVert
+        }px;border-radius:10px;border: 2px solid ${borderColor}">
+                        <div style="display:flex;justify-content:flex-end;margin-top:5px;margin-right:5px;font-size:9px;color:${textColor}">#${
+                         d.data.id
+                        }</div>
+                        <div style="background-color:${color};margin-top:${
+         -imageDiffVert - 20
+        }px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
+                        <div style="margin-top:${
+                         -imageDiffVert - 20
+                        }px;">   <img onerror="this.style.display='none'" src=" ${
+         d.data.image
+        }" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
+                        <div style="font-size:13px;color:${textColor};margin-left:20px;margin-right:14px;margin-top:10px;font-weight:600;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word">${
+                         escaparHtml(d.data.name)
+                        }</div>
+                        <div style="color:${textColor};opacity:0.8;margin-left:20px;margin-right:14px;margin-top:3px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${
+                         escaparHtml(d.data.position)
+                        }</div>
 
-        if (unidade) {
-         const corpo = titulo.length > 60 ? 11 : titulo.length > 34 ? 12 : 13.5;
-         return `
-          <div style="width:${d.width}px;height:${d.height}px;padding:4px 1px 0">
-            <div style="font-family:'Inter',sans-serif;background:#fff;width:${d.width - 2}px;height:${d.height - 6}px;border-radius:10px;border:1px solid #E4E2E9;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
-              <div style="background:${cor};color:${tinta};padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:.7px;display:flex;justify-content:space-between;align-items:center;flex:0 0 auto">
-                <span>${d.data._rotuloTipo || ""}</span><span style="opacity:.75">#${d.data.id}</span>
-              </div>
-              <div style="padding:8px 12px;flex:1 1 auto;display:flex;align-items:center">
-                <div style="font-size:${corpo}px;line-height:1.25;color:#0b0b0b;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${titulo}</div>
-              </div>
-            </div>
-          </div>`;
-        }
-
-        const avatar = d.data.imageUrl
-         ? `<img src="${d.data.imageUrl}" alt="" style="width:34px;height:34px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
-         : `<div style="width:34px;height:34px;border-radius:100px;background:#e2e8f0;color:#64748b;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla || ""}</div>`;
-        return `
-          <div style="width:${d.width}px;height:${d.height}px;padding:4px 1px 0">
-            <div style="font-family:'Inter',sans-serif;background:#fff;width:${d.width - 2}px;height:${d.height - 6}px;border-radius:10px;border:1px dashed #cbd5e1;box-sizing:border-box;padding:10px 12px;display:flex;gap:10px;align-items:center;overflow:hidden;position:relative">
-              <div style="position:absolute;top:5px;right:8px;font-size:9px;color:#94a3b8">#${d.data.id}</div>
-              ${avatar}
-              <div style="min-width:0">
-                <div style="font-size:13px;line-height:1.2;color:#0b0b0b;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titulo}</div>
-                ${d.data.positionName ? `<div style="color:#52514e;font-size:10px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName}</div>` : ""}
-              </div>
-            </div>
-          </div>`;
+                    </div>
+                </div>
+                        `;
        });
 
       c.layoutBindings(
@@ -383,38 +518,44 @@
        .compactMarginBetween((d) => 15)
        .compactMarginPair((d) => 80)
        .nodeContent(function (d, i, arr, state) {
-        // Unidade e colaborador sao coisas diferentes, entao sao dois cards
-        // diferentes: unidade tem cabecalho preenchido com o tipo escrito;
-        // pessoa tem retrato e moldura tracejada. A cor apenas ordena o nivel.
-        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
-        if (d.data._ehUnidade) {
-         return `
-            <div style="padding-top:12px;height:${d.height}px">
-              <div style="height:${d.height - 14}px;background:#fff;border:1px solid #d6dae2;border-radius:4px;overflow:hidden;display:flex;flex-direction:column">
-                <div style="background:${cor};color:${tinta};padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:.8px;display:flex;justify-content:space-between">
-                  <span>${d.data._rotuloTipo}</span><span style="opacity:.75">#${d.data.id}</span>
-                </div>
-                <div style="flex:1;display:flex;align-items:center;padding:12px 16px">
-                  <div style="color:#111672;font-size:${nome.length > 44 ? 13 : 16}px;font-weight:700;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
-                </div>
-                <div style="border-top:1px solid #eef1f5;padding:6px 16px;font-size:11px;color:#52514e">${d.data._directSubordinates} diretos, ${d.data._totalSubordinates} no total</div>
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        return `${selo(d)}
+            <div style="padding-top:30px;background-color:none;margin-left:1px;height:${
+             d.height
+            }px;border-radius:2px;overflow:visible">
+              <div style="height:${
+               d.height - 32
+              }px;padding-top:0px;background-color:white;border:1px solid lightgray;">
+
+                <img onerror="this.style.display='none'" src=" ${
+                 d.data.imageUrl
+                }" style="margin-top:-30px;margin-left:${
+         d.width / 2 - 30
+        }px;border-radius:100px;width:60px;height:60px;" />
+
+               <div style="margin-right:10px;margin-top:15px;float:right">${
+                d.data.id
+               }</div>
+
+               <div style="margin-top:-30px;background-color:${t.borda};height:10px;width:${
+                d.width - 2
+               }px;border-radius:1px"></div>
+
+               <div style="padding:20px; padding-top:35px;text-align:center">
+                   <div style="color:${t.texto};font-size:16px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+                    d.data.name
+                   } </div>
+                   <div style="color:#404040;font-size:16px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+                    d.data.positionName
+                   } </div>
+               </div>
+               <div style="display:flex;justify-content:space-between;padding-left:15px;padding-right:15px;">
+                 <div > Manages:  ${d.data._directSubordinates} 👤</div>
+                 <div > Oversees: ${d.data._totalSubordinates} 👤</div>
+               </div>
               </div>
-            </div>`;
-        }
-        const foto = d.data.imageUrl
-         ? `<img src="${d.data.imageUrl}" alt="" style="width:56px;height:56px;border-radius:100px;object-fit:cover;border:3px solid #fff" />`
-         : `<div style="width:56px;height:56px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;border:3px solid #fff">${d.data._sigla}</div>`;
-        return `
-            <div style="padding-top:30px;height:${d.height}px">
-              <div style="height:${d.height - 32}px;background:#fff;border:1px dashed #b9c2cf;border-radius:4px;text-align:center;position:relative">
-                <div style="margin-top:-30px">${foto}</div>
-                <div style="position:absolute;top:8px;right:10px;font-size:10px;color:#94a3b8">#${d.data.id}</div>
-                <div style="padding:10px 16px">
-                  <div style="color:#0b0b0b;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
-                  <div style="color:#52514e;font-size:12px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName || ""}</div>
-                </div>
-              </div>
-            </div>`;
+      </div>
+  `;
        })
     },
 
@@ -445,25 +586,51 @@
         }
        })
        .nodeContent(function (d, i, arr, state) {
-        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
-        const unidade = d.data._ehUnidade;
-        const dim = 78, anel = 92;
-        // Unidade: disco cheio da cor do nivel. Pessoa: retrato com aro neutro.
-        const miolo = unidade
-         ? `<div style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;background:${cor};color:${tinta};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:center;padding:6px;box-sizing:border-box;line-height:1.2">${d.data._rotuloTipo.split(" / ")[0]}</div>`
-         : d.data.imageUrl
-         ? `<img src="${d.data.imageUrl}" alt="" style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;object-fit:cover" />`
-         : `<div style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;background:#e2e8f0;color:#52514e;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${d.data._sigla}</div>`;
-        return `
-                <div style="background:#fff;position:absolute;width:${d.width}px;height:${d.height}px">
-                   <div style="position:absolute;margin-top:-${anel / 2}px;margin-left:${d.width / 2 - anel / 2}px;width:${anel}px;height:${anel}px;border-radius:100px;background:${unidade ? cor : "#cbd5e1"}"></div>
-                   <div style="position:absolute;margin-top:-${(anel - 8) / 2}px;margin-left:${d.width / 2 - (anel - 8) / 2}px;width:${anel - 8}px;height:${anel - 8}px;border-radius:100px;background:#fff"></div>
-                   ${miolo}
-                   <div style="top:${anel / 2 + 8}px;position:absolute;width:${d.width}px;text-align:center">
-                      <div style="font-size:${nome.length > 34 ? 11 : 13}px;font-weight:700;color:#0b0b0b;padding:0 8px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
-                      <div style="font-size:10px;color:#52514e;margin-top:3px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unidade ? d.data._rotuloTipo : d.data.positionName || ""}</div>
+        // Era colors[d.depth % 6]: a cor vinha da PROFUNDIDADE, entao um
+        // SETOR no nivel 4 e um SETOR no nivel 5 saiam de cores diferentes,
+        // e um SETOR e um COLABORADOR no mesmo nivel saiam iguais. A cor
+        // nao carregava nenhuma informacao de classe. Agora vem da classe.
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        const color = t.borda;
+        const imageDim = 80;
+        const lightCircleDim = 95;
+        const outsideCircleDim = 110;
+
+        return `${selo(d)}
+                <div style="background-color:white; position:absolute;width:${
+                 d.width
+                }px;height:${d.height}px;">
+                   <div style="background-color:${color};position:absolute;margin-top:-${
+         outsideCircleDim / 2
+        }px;margin-left:${
+         d.width / 2 - outsideCircleDim / 2
+        }px;border-radius:100px;width:${outsideCircleDim}px;height:${outsideCircleDim}px;"></div>
+                   <div style="background-color:#ffffff;position:absolute;margin-top:-${
+                    lightCircleDim / 2
+                   }px;margin-left:${
+         d.width / 2 - lightCircleDim / 2
+        }px;border-radius:100px;width:${lightCircleDim}px;height:${lightCircleDim}px;"></div>
+                   <img onerror="this.style.display='none'" src=" ${
+                    d.data.imageUrl
+                   }" style="position:absolute;margin-top:-${
+         imageDim / 2
+        }px;margin-left:${
+         d.width / 2 - imageDim / 2
+        }px;border-radius:100px;width:${imageDim}px;height:${imageDim}px;" />
+                   <div class="card" style="box-sizing:border-box;top:${
+                    outsideCircleDim / 2 + 10
+                   }px;position:absolute;height:68px;width:${
+         d.width
+        }px;background-color:${t.borda};overflow:hidden;">
+                      <div style="box-sizing:border-box;background-color:${color};height:38px;display:flex;align-items:center;justify-content:center;padding:0 8px;color:#ffffff;font-weight:bold;font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escaparHtml(d.data.name)}</span>
+                      </div>
+                      <div style="box-sizing:border-box;background-color:${t.bg};height:30px;display:flex;align-items:center;justify-content:center;padding:0 8px;color:${t.texto};font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escaparHtml(d.data.positionName)}</span>
+                      </div>
                    </div>
-               </div>`;
+               </div>
+  `;
        })
     },
 
@@ -491,25 +658,36 @@
         }</span> ${node.data._directSubordinates}  </div>`;
        })
        .nodeContent(function (d, i, arr, state) {
-        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
-        if (d.data._ehUnidade) {
-         return `
-            <div style="position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:50px;background:${cor};color:${tinta};display:flex;flex-direction:column;justify-content:center;padding:0 22px;box-sizing:border-box">
-               <div style="font-size:9px;font-weight:700;letter-spacing:.8px;opacity:.85">${d.data._rotuloTipo}</div>
-               <div style="font-size:${nome.length > 40 ? 11 : 13}px;font-weight:700;line-height:1.2;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
-            </div>`;
-        }
-        const foto = d.data.imageUrl
-         ? `<img src="${d.data.imageUrl}" alt="" style="width:50px;height:50px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
-         : `<div style="width:50px;height:50px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla}</div>`;
-        return `
-            <div style="position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:50px;background:#fff;border:1px dashed #b9c2cf;display:flex;align-items:center;gap:10px;padding:0 16px 0 8px;box-sizing:border-box">
-               ${foto}
-               <div style="min-width:0">
-                 <div style="color:#0b0b0b;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
-                 <div style="color:#52514e;font-size:10px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.data.positionName || ""}</div>
-               </div>
-            </div>`;
+        // Mesma correcao do Circles: cor por CLASSE, nao por profundidade.
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        const color = t.borda;
+        return `${selo(d)}
+            <div style="background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+         d.width
+        }px;height:${d.height}px;border-radius:50px">
+               <img onerror="this.style.display='none'" src=" ${
+                d.data.imageUrl
+               }" style="position:absolute;margin-top:5px;margin-left:${5}px;border-radius:100px;width:60px;height:60px;" />
+               <div style="position:absolute;top:-15px;width:${
+                d.width
+               }px;text-align:center;color:#fafafa;">
+                     <div style="margin:0 auto;background-color:${color};display:inline-block;padding:8px;padding-bottom:0px;border-radius:5px"> ${
+         d.data.id
+        }</div>
+              </div>
+
+              <div style="color:#fafafa;font-size:${
+               d.depth < 2 ? 16 : 12
+              }px;font-weight:bold;margin-left:70px;margin-right:20px;margin-top:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+         d.depth < 2
+          ? d.data.name
+          : (d.data.name || "").trim().split(/\s+/g)[0]
+        } </div>
+              <div style="color:#fafafa;margin-left:70px;margin-right:20px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+               d.depth < 2 ? d.data.positionName : d.data.area
+              } </div>
+           </div>
+  `;
        })
     },
 
@@ -547,33 +725,640 @@
         }
        })
        .nodeContent(function (d, i, arr, state) {
-        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
-        if (d.data._ehUnidade) {
-         return `
-            <div style="font-family:'Inter',sans-serif;position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:10px;border:1px solid #E4E2E9;background:#fff;overflow:hidden;display:flex;flex-direction:column">
-               <div style="background:${cor};color:${tinta};padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:.7px;display:flex;justify-content:space-between">
-                 <span>${d.data._rotuloTipo}</span><span style="opacity:.75">#${d.data.id}</span>
-               </div>
-               <div style="flex:1;display:flex;align-items:center;padding:8px 14px">
-                 <div style="font-size:${nome.length > 44 ? 11.5 : 13.5}px;color:#0b0b0b;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
-               </div>
-            </div>`;
-        }
-        const foto = d.data.imageUrl
-         ? `<img src="${d.data.imageUrl}" alt="" style="width:36px;height:36px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
-         : `<div style="width:36px;height:36px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla}</div>`;
-        return `
-            <div style="font-family:'Inter',sans-serif;position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:10px;border:1px dashed #cbd5e1;background:#fff;padding:12px 14px;box-sizing:border-box;display:flex;gap:10px;align-items:center">
-               ${foto}
-               <div style="min-width:0">
-                 <div style="font-size:13px;color:#0b0b0b;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
-                 <div style="color:#52514e;font-size:10px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName || ""}</div>
-               </div>
-            </div>`;
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        const color = t.bg;
+        return `${selo(d)}
+            <div style="font-family: 'Inter', sans-serif;background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+         d.width
+        }px;height:${d.height}px;border-radius:10px;border: 2px solid ${t.borda}">
+               <div style="background-color:${color};position:absolute;margin-top:-25px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
+               <img onerror="this.style.display='none'" src=" ${
+                d.data.imageUrl
+               }" style="position:absolute;margin-top:-20px;margin-left:${20}px;border-radius:100px;width:40px;height:40px;" />
+
+              <div style="color:#08011E;position:absolute;right:20px;top:17px;font-size:10px;"><i class="fas fa-ellipsis-h"></i></div>
+
+              <div style="font-size:14px;font-weight:600;color:${t.texto};margin-left:20px;margin-right:14px;margin-top:32px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word"> ${
+               escaparHtml(d.data.name)
+              } </div>
+              <div style="color:${t.texto};opacity:.75;margin-left:20px;margin-right:14px;margin-top:3px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
+               escaparHtml(d.data.positionName)
+              } </div>
+
+
+           </div>
+  `;
        })
     },
 
+    {
+     id: "futuristic",
+     label: "Futuristic",
+     background: "#000c0e",
+     // O desenho original preenchia estas barras com Math.random(). Trocado
+     // pelo tamanho real de cada equipe: a barra de cada nível mostra quantas
+     // pessoas respondem àquele ramo, que é um número que existe no arquivo.
+     prepare: (rows) => {
+      const filhos = {};
+      rows.forEach((r) => {
+       const p = String(r.parentId || "").trim();
+       if (p) filhos[p] = (filhos[p] || 0) + 1;
+      });
+      const maior = Math.max(1, ...Object.values(filhos));
+      rows.forEach((d) => {
+       const diretos = filhos[String(d.id)] || 0;
+       d.progress = diretos
+        ? [...new Array(Math.min(diretos, 12))].map(
+           (_, i) => 5 + (25 * (diretos - i)) / maior
+          )
+        : [];
+      });
+      return rows;
+     },
+     apply: (c) =>
+      c
+       .nodeHeight((d) => 170)
+       .nodeWidth((d) => {
+        if (d.depth == 0) return 500;
+        return 330;
+       })
+       .childrenMargin((d) => 90)
+       .compactMarginBetween((d) => 65)
+       .compactMarginPair((d) => 100)
+       .neighbourMargin((a, b) => 50)
+       .siblingsMargin((d) => 100)
+       .buttonContent(({ node, state }) => {
+        return `<div style="color:#2CAAE5;border-radius:5px;padding:3px;font-size:10px;margin:auto auto;background-color:#040910;border: 1px solid #2CAAE5"> <span style="font-size:9px">${
+         node.children
+          ? `<i class="fas fa-angle-up"></i>`
+          : `<i class="fas fa-angle-down"></i>`
+        }</span> ${node.data._directSubordinates}  </div>`;
+       })
+       .linkUpdate(function (d, i, arr) {
+        d3.select(this)
+         .attr("stroke", (d) =>
+          d.data._upToTheRootHighlighted ? "#14760D" : "#2CAAE5"
+         )
+         .attr("stroke-width", (d) =>
+          d.data._upToTheRootHighlighted ? 15 : 1
+         );
+
+        if (d.data._upToTheRootHighlighted) {
+         d3.select(this).raise();
+        }
+       })
+       .nodeContent(function (d, i, arr, state) {
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        const svgStr = `<svg width=150 height=75  style="background-color:none"> <path d="M 0,15 L15,0 L135,0 L150,15 L150,60 L135,75 L15,75 L0,60" fill="${t.borda}" stroke="${t.borda}"/> </svg>`;
+        return `${selo(d)}
+                          <div class="left-top" style="position:absolute;left:-10px;top:-10px">  ${svgStr}</div>
+                          <div class="right-top" style="position:absolute;right:-10px;top:-10px">  ${svgStr}</div>
+                          <div class="right-bottom" style="position:absolute;right:-10px;bottom:-14px">  ${svgStr}</div>
+                          <div class="left-bottom" style="position:absolute;left:-10px;bottom:-14px">  ${svgStr}</div>
+                          <div style="font-family: 'Inter'; background-color:#040910;sans-serif; position:absolute;margin-top:-1px; margin-left:-1px;width:${
+                           d.width
+                          }px;height:${
+         d.height
+        }px;border-radius:0px;border: 2px solid ${t.borda};">
+
+                             <div class="pie-chart-wrapper" style="margin-left:-10px;margin-top:5px;width:320px;height:156px;overflow:hidden"></div>
+
+                            <div style="color:${t.bg};position:absolute;right:15px;top:-20px;max-width:${d.width - 200}px;">
+                              <div style="font-size:14px;font-weight:600;color:${t.bg};margin-top:32px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word"> ${
+                               escaparHtml(d.data.name)
+                              } </div>
+                              <div style="font-size:10px;"> ${
+                               d.data.positionName || ""
+                              } </div>
+                              <div style="font-size:10px;"> ${
+                               d.data.id || ""
+                              } </div>
+                              ${
+                               d.depth == 0
+                                ? `                              <br/>
+                              <div style="max-width:200px;font-size:10px;">
+                                ${d.data.area || ""}
+                              </div>`
+                                : ""
+                              }
+
+                            </div>
+
+                            <div style="position:absolute;left:-5px;bottom:10px;">
+                              <div style="font-size:10px;color:#2CAAE5;margin-left:20px;margin-top:32px"> Progress </div>
+                              <div style="color:#2CAAE5;margin-left:20px;margin-top:3px;font-size:10px;">
+                                <svg width=150 height=30> ${(
+                                 d.data.progress || []
+                                )
+                                 .map((h, i) => {
+                                  return `<rect  width=10 x="${
+                                   i * 12
+                                  }" height=${h}  y=${30 - h} fill="#B41425"/>`;
+                                 })
+                                 .join("")}  </svg>
+                                </div>
+                            </div>
+                          </div>
+
+  `;
+       })
+       .nodeUpdate(function (d, i, arr) {
+        d3.select(this)
+         .select(".node-rect")
+         .attr("stroke", (d) =>
+          d.data._highlighted || d.data._upToTheRootHighlighted
+           ? "#14760D"
+           : "none"
+         )
+         .attr(
+          "stroke-width",
+          d.data._highlighted || d.data._upToTheRootHighlighted ? 40 : 1
+         );
+
+        const pieChartWrapperNode = d3
+         .select(this)
+         .select(".pie-chart-wrapper")
+         .node();
+        // Os nós de paginação ("Show next N nodes") não usam o nodeContent
+        // deste design, então não têm o wrapper do gráfico de pizza.
+        if (!pieChartWrapperNode) return;
+        // Era um "Dummy calc" sobre o tamanho do nome. Agora é a proporção
+        // real entre subordinados diretos e o total abaixo do nó.
+        const diretos = d.data._directSubordinates || 0;
+        const total = d.data._totalSubordinates || 0;
+        const val = total ? Math.round((diretos / total) * 100) : 0;
+        // General pie chart invokation code
+        new PieChart()
+         .data([
+          { key: "diretos", color: "#6EC2EA", value: val },
+          { key: "demais", color: "#0D5AAF", value: 100 - val }
+         ])
+         .container(pieChartWrapperNode)
+         .svgHeight(150)
+         .svgWidth(320)
+         .marginTop(40)
+         // Unidade nao tem retrato: passar string vazia gerava um <img src="">
+         // quebrado em todos os 629 cards. 1x1 transparente quando nao ha foto.
+         .image(d.data.imageUrl || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+         .backCircleColor("#1F72A7")
+         .defaultFont("Inter")
+         .render();
+       }),
+     after: () => {
+      const url = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4QMaAyMA1SdmlAAAAVRJREFUeNrt26FOw2AUhuFTElzrETNLMNPtJVRVVFbtlnYXKGQFqldANo3EoLDUITazzCxBTNBk53lv4M+XJ/ndKZ52L9uft9eP+Oeqbtgs8O7+cbWO36/PiIgmwd4ojsdIU9n2l7XzNBYZNj9Eos6oTRbcdMAZAwxYgAVYgAVYgAUYsAALsAALsAALMGABFmABFmABFmABBizAAqwFgZ/fv+slHl7q3aobNpn2proujIgo276ep/HgixZgARZgARZgAQYswAIswAIswAIswIAFWIAFWIAFWIABC7AAC7AAC7D+AHZdeN97XRf6ogVYgAVYgAVYgAELsAALsAALsAADFmABFmABFmABFmDAAizAAizAAqxrYNeF973XdaEvWoAFWIAFWIAFGLAAC7AAC7AACzBgARZgARZgARZgAQYswAIswAKsW0p1m1S2/WXtPI1Fhs0nxU1Jj2yxm2sAAAAASUVORK5CYII=`;
+      const replaced = url.replace(/(\r\n|\n|\r)/gm, "");
+      d3.select(".svg-chart-container")
+       .style(
+        "background",
+        'radial-gradient(circle at center, #04192B 0, #000B0E 100%) url("https://raw.githubusercontent.com/bumbeishvili/coronavirus.davidb.dev/master/glow.png")'
+       )
+       .style(
+        "background-image",
+        `url(${replaced}), radial-gradient(circle at center, #04192B 0, #000B0E 100%)`
+       );
+     }
+    },
+
+    {
+     id: "previous",
+     label: "Prev version design",
+     background: "white",
+     prepare: (rows) =>
+      rows.map((d) => {
+       // Eram Math.random(): cada card saía com um tamanho e um formato de
+       // canto diferentes a cada render, sem significar nada.
+       const width = 330;
+       const height = 140;
+       const cornerShape = "ROUNDED";
+       const nodeImageWidth = 100;
+       const nodeImageHeight = 100;
+       const centerTopDistance = 0;
+       const centerLeftDistance = 0;
+       const expanded = false;
+
+       const titleMarginLeft = nodeImageWidth / 2 + 20 + centerLeftDistance;
+       const contentMarginLeft = width / 2 + 25;
+       return {
+        // Este prepare monta um objeto NOVO do zero. Ele ja carregava o
+        // selo, mas nao o tipo: sem _tipo, selo() e o nodeContent caiam em
+        // TIPO_DESCONHECIDO e os 629 cards saiam todos da mesma cor cinza,
+        // achatando as 15 classes num tema inteiro.
+        _etiqueta: d._etiqueta,
+        _souUnidade: d._souUnidade,
+        _tipo: d._tipo,
+        _tipoNome: d._tipoNome,
+        // O objeto novo tambem nao levava name/positionName/imageUrl: o card
+        // so conseguia o texto atraves do campo `template`, montado aqui.
+        name: d.name,
+        positionName: d.positionName,
+        imageUrl: d.imageUrl,
+        id: d.id,
+        nodeId: d.id,
+        parentNodeId: d.parentId,
+        width: width,
+        height: height,
+        borderWidth: 1,
+        borderRadius: 5,
+        borderColor: { red: 15, green: 140, blue: 121, alpha: 1 },
+        backgroundColor: { red: 51, green: 182, blue: 208, alpha: 1 },
+        nodeImage: {
+         url: d.imageUrl,
+         width: nodeImageWidth,
+         height: nodeImageHeight,
+         centerTopDistance: centerTopDistance,
+         centerLeftDistance: centerLeftDistance,
+         cornerShape: cornerShape,
+         shadow: false,
+         borderWidth: 0,
+         borderColor: { red: 19, green: 123, blue: 128, alpha: 1 }
+        },
+        nodeIcon: { icon: "https://to.ly/1yZnX", size: 30 },
+        // Saiu daqui: a palavra literal "Unit" (d.unit nunca existe neste
+        // arquivo, entao TODO card imprimia "Unit"), e o bloco office/area,
+        // que repetia "SP" e o nome da secretaria de cima em cada card —
+        // texto que a propria arvore ja mostra e que colidia com o titulo.
+        template: `<div style="padding-right:12px">
+                  <div style="margin-left:${titleMarginLeft}px;
+                              margin-top:10px;
+                              font-size:14px;
+                              font-weight:bold;
+                              line-height:1.25;
+                              display:-webkit-box;
+                              -webkit-line-clamp:3;
+                              -webkit-box-orient:vertical;
+                              overflow:hidden;
+                              word-break:break-word;
+                         ">${escaparHtml(d.name)}</div>
+                 <div style="margin-left:${titleMarginLeft}px;
+                              margin-top:4px;
+                              font-size:12px;
+                              opacity:.9;
+                              white-space:nowrap;
+                              overflow:hidden;
+                              text-overflow:ellipsis;
+                         ">${escaparHtml(d.positionName)}</div>
+              </div>`,
+        connectorLineColor: { red: 220, green: 189, blue: 207, alpha: 1 },
+        connectorLineWidth: 5,
+        dashArray: "",
+        expanded: expanded
+       };
+      }),
+     apply: (c) =>
+      c
+       .nodeWidth((n) => 250)
+       .nodeHeight((n) => 120)
+       .compactMarginBetween((d) => 50)
+       .siblingsMargin((d) => 100)
+       // O card original empilhava margin-left:-100/-70/-65 e margin-top:
+       // -20/-40/-37 para posicionar retrato, painel e contagem. Com o texto
+       // office/area removido o bloco de contagem subiu por cima do titulo e
+       // o escondeu, e qualquer overflow:hidden cortava o nome. Mesmos
+       // elementos, mesma identidade — agora em fluxo normal.
+       .nodeContent((d) => {
+        const t = d.data._tipo || TIPO_DESCONHECIDO;
+        const foto = d.data.imageUrl
+         ? `<img onerror="this.style.display='none'" src="${escaparHtml(d.data.imageUrl)}" style="width:48px;height:48px;border-radius:5px;object-fit:cover;flex:0 0 auto;background:rgba(255,255,255,.18)" />`
+         : "";
+        return `${selo(d)}
+              <div style="box-sizing:border-box;width:${d.width}px;height:${d.height}px;padding-top:9px;font-family:'Inter',sans-serif">
+               <div style="box-sizing:border-box;display:flex;gap:10px;width:100%;height:${d.height - 9}px;padding:10px 12px;border-radius:5px;background-color:${t.borda};color:#ffffff;overflow:hidden">
+                ${foto}
+                <div style="min-width:0;flex:1;display:flex;flex-direction:column">
+                 <div style="font-size:13px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word">${escaparHtml(d.data.name)}</div>
+                 <div style="font-size:11px;opacity:.9;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escaparHtml(d.data.positionName)}</div>
+                 <div style="margin-top:auto;font-size:10px;opacity:.85;white-space:nowrap">${d.data._totalSubordinates} abaixo &middot; ${d.data._directSubordinates} diretos</div>
+                </div>
+               </div>
+              </div>`;
+       })
+    }
+
+
    ];
+
+
+
+   // =====================================================================
+   // FAMILIA DE 43 TEMAS — reconstruida.
+   //
+   // A versao anterior era o produto 8 tratamentos x 3 densidades x 2 raios.
+   // Medido com .shots/distintos.py (recorta o mesmo card em cada tema,
+   // normaliza para 160x80 e compara pixel a pixel): 155 pares abaixo do
+   // limiar e 44 dos 50 temas com um gemeo visual. Densidade e so ESCALA,
+   // que some na normalizacao, e raio 0 contra 14 e invisivel. Eram 8 temas
+   // reais e 35 renomeacoes.
+   //
+   // Agora a diferenca vem da SILHUETA: 10 estruturas de card diferentes
+   // (DOM diferente, nao parametro diferente), combinadas com onde a cor da
+   // classe mora, alinhamento, retrato e fundo do canvas.
+   //
+   // Todas as 43 leem TIPOS: as 15 classes continuam distintas em cada tema.
+   // =====================================================================
+
+   function escaparHtml(texto) {
+    return String(texto == null ? "" : texto)
+     .replace(/&/g, "&amp;")
+     .replace(/</g, "&lt;")
+     .replace(/>/g, "&gt;")
+     .replace(/"/g, "&quot;")
+     .replace(/'/g, "&#39;");
+   }
+
+   // rank 0 (PREFEITURA) e o maior; rank 5 (COLABORADOR) o menor.
+   const ESCALA_RANK = [1.30, 1.18, 1.08, 1.0, 0.94, 0.88];
+
+   function escalaPorRank(d) {
+    const t = (d && d.data && d.data._tipo) || TIPO_DESCONHECIDO;
+    return ESCALA_RANK[t.rank] || 1;
+   }
+
+   function iniciaisDe(texto) {
+    const partes = String(texto || "").trim().split(/\s+/).filter(Boolean);
+    if (!partes.length) return "?";
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+   }
+
+   function retrato(d, cor, lado, raio) {
+    if (!d.data.imageUrl) return "";
+    return `<img onerror="this.style.display='none'" src="${escaparHtml(d.data.imageUrl)}" style="width:${lado}px;height:${lado}px;border-radius:${raio};object-fit:cover;flex:0 0 auto;background:#fff;border:2px solid ${cor}" />`;
+   }
+
+   // ---------------------------------------------------------------- textos
+   function bloco(nome, sub, cfg, alinhar) {
+    return `<div style="min-width:0;flex:1;text-align:${alinhar || "left"}">
+      <div style="font-size:${cfg.fonte}px;font-weight:660;color:${cfg.corTitulo};line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word">${nome}</div>
+      ${sub ? `<div style="font-size:${cfg.fonteSub}px;color:${cfg.corSub};margin-top:3px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>` : ""}
+     </div>`;
+   }
+
+   // ------------------------------------------------------- 10 ESTRUTURAS
+   // Cada uma monta um DOM diferente. Nao ha parametro que transforme uma na
+   // outra: sao silhuetas distintas.
+   const ESTRUTURAS = {
+
+    // 1. barra de acento vertical na esquerda
+    barra: (d, t, c) => `
+     <div style="box-sizing:border-box;display:flex;gap:10px;align-items:center;width:100%;height:100%;padding:9px 12px;background:${c.fundo};border:1px solid ${c.linha};border-left:16px solid ${c.acento};border-radius:${c.raio}px;overflow:hidden">
+      ${retrato(d, c.acento, 34, "50%")}${bloco(c.nome, c.sub, c)}
+     </div>`,
+
+    // 2. faixa de cabecalho colorida, corpo claro
+    cabecalho: (d, t, c) => `
+     <div style="box-sizing:border-box;width:100%;height:100%;background:${c.fundo};border:1px solid ${c.linha};border-radius:${c.raio}px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="background:${c.acento};height:20px;flex:0 0 auto"></div>
+      <div style="flex:1;display:flex;gap:9px;align-items:center;padding:8px 12px;min-height:0">
+       ${retrato(d, c.acento, 32, "6px")}${bloco(c.nome, c.sub, c)}
+      </div>
+     </div>`,
+
+    // 3. base espessa embaixo
+    base: (d, t, c) => `
+     <div style="box-sizing:border-box;width:100%;height:100%;background:${c.fundo};border:1px solid ${c.linha};border-bottom:18px solid ${c.acento};border-radius:${c.raio}px;overflow:hidden;display:flex;gap:9px;align-items:center;padding:8px 12px">
+      ${retrato(d, c.acento, 32, "3px")}${bloco(c.nome, c.sub, c)}
+     </div>`,
+
+    // 4. retrato/inicial no topo, texto centralizado
+    centrado: (d, t, c) => `
+     <div style="box-sizing:border-box;position:relative;width:100%;height:100%;background:${c.fundo};border:2px solid ${c.acento};border-radius:${c.raio}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:6px 10px 9px 10px;overflow:visible">
+      <div style="position:absolute;top:-19px;left:50%;transform:translateX(-50%);width:46px;height:46px;border-radius:50%;background:${c.acento};color:${c.fundo};font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;border:3px solid ${c.fundo};box-sizing:border-box">${iniciaisDe(c.nomeCru)}</div>
+      <div style="width:100%;margin-top:20px;min-height:0;overflow:hidden">${bloco(c.nome, c.sub, c, "center")}</div>
+     </div>`,
+
+    // 5. quadrado de inicial a esquerda
+    inicial: (d, t, c) => `
+     <div style="box-sizing:border-box;display:flex;gap:10px;align-items:stretch;width:100%;height:100%;background:${c.fundo};border:1px solid ${c.linha};border-radius:${c.raio}px;overflow:hidden">
+      <div style="width:46px;flex:0 0 auto;background:${c.acento};color:${c.fundo};font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center">${iniciaisDe(c.nomeCru)}</div>
+      <div style="flex:1;min-width:0;display:flex;align-items:center;padding:8px 12px 8px 0">${bloco(c.nome, c.sub, c)}</div>
+     </div>`,
+
+    // 6. card dividido: terco esquerdo solido
+    divisao: (d, t, c) => `
+     <div style="box-sizing:border-box;display:flex;width:100%;height:100%;border:1px solid ${c.acento};border-radius:${c.raio}px;overflow:hidden">
+      <div style="width:34%;flex:0 0 auto;background:${c.acento};display:flex;align-items:center;justify-content:center;padding:6px">
+       <span style="color:${c.fundo};font-size:9px;font-weight:800;letter-spacing:.6px;text-align:center;line-height:1.15;word-break:break-word">${t.rotulo}</span>
+      </div>
+      <div style="flex:1;min-width:0;background:${c.fundo};display:flex;align-items:center;padding:8px 11px">${bloco(c.nome, c.sub, c)}</div>
+     </div>`,
+
+    // 7. canto superior direito cortado (chanfro)
+    chanfro: (d, t, c) => `
+     <div style="box-sizing:border-box;position:relative;width:100%;height:100%;background:${c.fundo};border:1px solid ${c.linha};clip-path:polygon(0 0, calc(100% - 46px) 0, 100% 46px, 100% 100%, 46px 100%, 0 calc(100% - 46px));display:flex;gap:9px;align-items:center;padding:8px 16px;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:46px;height:46px;background:${c.acento};clip-path:polygon(0 0, 100% 100%, 0 100%)"></div>
+      <div style="position:absolute;bottom:0;left:0;width:46px;height:46px;background:${c.acento};clip-path:polygon(100% 0, 100% 100%, 0 100%)"></div>
+      ${retrato(d, c.acento, 32, "3px")}${bloco(c.nome, c.sub, c)}
+     </div>`,
+
+    // 8. moldura dupla
+    moldura: (d, t, c) => `
+     <div style="box-sizing:border-box;width:100%;height:100%;background:${c.acento};border-radius:${c.raio}px;padding:11px;overflow:hidden">
+      <div style="box-sizing:border-box;width:100%;height:100%;background:${c.fundo};border-radius:${Math.max(0, c.raio - 6)}px;display:flex;gap:8px;align-items:center;padding:5px 9px;overflow:hidden">
+       ${bloco(c.nome, c.sub, c)}
+      </div>
+     </div>`,
+
+    // 9. minimalista: ponto colorido, sem moldura, linha sob o titulo
+    linha: (d, t, c) => `
+     <div style="box-sizing:border-box;width:100%;height:100%;background:${c.fundo};border:0;border-radius:${c.raio}px;display:flex;flex-direction:column;justify-content:center;padding:8px 14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.12)">
+      <div style="font-size:${c.fonte}px;font-weight:660;color:${c.corTitulo};text-align:center;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word">${c.nome}</div>
+      <div style="height:7px;width:100%;background:${c.acento};margin:6px 0 5px 0;flex:0 0 auto"></div>
+      ${c.sub ? `<div style="font-size:${c.fonteSub}px;color:${c.corSub};text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.sub}</div>` : ""}
+     </div>`,
+
+    // 10. listras diagonais na faixa lateral
+    listra: (d, t, c) => `
+     <div style="box-sizing:border-box;width:100%;height:100%;border:2px solid ${c.acento};border-radius:${c.raio}px;overflow:hidden;background:${c.fundo};background-image:repeating-linear-gradient(135deg, ${c.acento}2E 0 9px, transparent 9px 22px);display:flex;gap:9px;align-items:center;padding:8px 12px">
+      <div style="background:${c.fundo};padding:5px 7px;border-radius:5px;display:flex;gap:8px;align-items:center;min-width:0;flex:1">
+       ${retrato(d, c.acento, 30, "50%")}${bloco(c.nome, c.sub, c)}
+      </div>
+     </div>`
+   };
+
+   // --------------------------------------------------------- 43 CONFIGS
+   // Cada linha e um par (estrutura, modo de cor) diferente. `fundoCanvas`
+   // escuro muda o card inteiro, nao so a moldura.
+   // Distribuicao MEDIDA, nao arbitrada (.shots/distintos.py):
+   //
+   // No modo `escuro` o card e um bloco #111827 e ~85% dos pixels sao iguais
+   // em qualquer estrutura, entao as silhuetas nao se separavam: 9 dos 10
+   // pares abaixo do limiar estavam ali. Sobraram no escuro apenas as 4
+   // estruturas que se distinguiram na medicao (cabecalho, base, divisao,
+   // moldura). `listra` saiu do solido pelo mesmo motivo.
+   //
+   // As vagas foram para `papel`, fundo creme claro onde a silhueta le bem.
+   // Total: claro 10 + branco 10 + solido 9 + escuro 4 + papel 10 = 43.
+   const CATALOGO = [
+    ["barra",     "claro",  "Barra Clara"],
+    ["cabecalho", "claro",  "Cabecalho Claro"],
+    ["base",      "claro",  "Base Clara"],
+    ["centrado",  "claro",  "Centrado Claro"],
+    ["inicial",   "claro",  "Inicial Clara"],
+    ["divisao",   "claro",  "Divisao Clara"],
+    ["chanfro",   "claro",  "Chanfro Claro"],
+    ["moldura",   "claro",  "Moldura Clara"],
+    ["linha",     "claro",  "Linha Clara"],
+    ["listra",    "claro",  "Listra Clara"],
+
+    ["barra",     "branco", "Barra Branca"],
+    ["cabecalho", "branco", "Cabecalho Branco"],
+    ["base",      "branco", "Base Branca"],
+    ["centrado",  "branco", "Centrado Branco"],
+    ["inicial",   "branco", "Inicial Branca"],
+    ["divisao",   "branco", "Divisao Branca"],
+    ["chanfro",   "branco", "Chanfro Branco"],
+    ["moldura",   "branco", "Moldura Branca"],
+    ["linha",     "branco", "Linha Branca"],
+    ["listra",    "branco", "Listra Branca"],
+
+    ["barra",     "solido", "Barra Solida"],
+    ["cabecalho", "solido", "Cabecalho Solido"],
+    ["base",      "solido", "Base Solida"],
+    ["centrado",  "solido", "Centrado Solido"],
+    ["inicial",   "solido", "Inicial Solida"],
+    ["divisao",   "solido", "Divisao Solida"],
+    ["chanfro",   "solido", "Chanfro Solido"],
+    ["moldura",   "solido", "Moldura Solida"],
+    ["linha",     "solido", "Linha Solida"],
+
+    ["cabecalho", "escuro", "Cabecalho Noturno"],
+    ["base",      "escuro", "Base Noturna"],
+    ["divisao",   "escuro", "Divisao Noturna"],
+    ["moldura",   "escuro", "Moldura Noturna"],
+
+    ["barra",     "papel",  "Barra Papel"],
+    ["cabecalho", "papel",  "Cabecalho Papel"],
+    ["base",      "papel",  "Base Papel"],
+    ["centrado",  "papel",  "Centrado Papel"],
+    ["inicial",   "papel",  "Inicial Papel"],
+    ["divisao",   "papel",  "Divisao Papel"],
+    ["chanfro",   "papel",  "Chanfro Papel"],
+    ["moldura",   "papel",  "Moldura Papel"],
+    ["linha",     "papel",  "Linha Papel"],
+    ["listra",    "papel",  "Listra Papel"]
+   ];
+
+   // Como a cor da classe vira fundo/texto do card. `solido` preenche com a
+   // cor da classe; `escuro` inverte o card inteiro; `papel` e um creme com
+   // tipografia serifada.
+   // Luminancia relativa (WCAG). Usada para escolher, entre as cores da
+   // classe, a que mais contrasta com o fundo do card daquele modo.
+   function luminancia(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+    if (!m) return 0;
+    const v = parseInt(m[1], 16);
+    const canais = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((n) => {
+     const x = n / 255;
+     return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * canais[0] + 0.7152 * canais[1] + 0.0722 * canais[2];
+   }
+
+   function contraste(a, b) {
+    const la = luminancia(a);
+    const lb = luminancia(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+   }
+
+   function paraRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+    const v = m ? parseInt(m[1], 16) : 0;
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+   }
+
+   function paraHex(rgb) {
+    return "#" + rgb.map((n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0")).join("");
+   }
+
+   // Mistura a cor com branco ou preto mantendo o MATIZ.
+   function misturar(cor, alvo, fracao) {
+    const a = paraRgb(cor);
+    const b = paraRgb(alvo);
+    return paraHex([0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * fracao));
+   }
+
+   // PREFEITURA tem paleta escura (bg #1C1917): num card de fundo #111827 o
+   // acento desaparecia e as 10 estruturas viravam o mesmo retangulo.
+   //
+   // A primeira tentativa foi escolher, entre as cores da classe, a de maior
+   // contraste — e isso QUEBROU a identidade: `seloTexto` e #FFFFFF em quase
+   // todas as classes, o branco ganha sempre num fundo escuro, e as 15
+   // classes colapsavam para 2 acentos distintos. Medido pelo harness:
+   // "classes distintas dentro de cada combinacao: minimo 2".
+   //
+   // Agora o acento parte SEMPRE de t.borda, que e unica por classe, e e
+   // clareado ou escurecido em passos ate atingir contraste suficiente.
+   // O matiz da classe permanece, entao COLABORADOR, SETOR, DIVISAO e
+   // SECRETARIA continuam distinguiveis em qualquer modo.
+   function acentoContrastante(t, fundo) {
+    const alvo = luminancia(fundo) < 0.25 ? "#FFFFFF" : "#000000";
+    let cor = t.borda;
+    for (let passo = 0; passo <= 10; passo++) {
+     cor = passo === 0 ? t.borda : misturar(t.borda, alvo, passo / 14);
+     if (contraste(cor, fundo) >= 3.2) return cor;
+    }
+    return cor;
+   }
+
+   // `acento` e a cor dos elementos de ESTRUTURA (barra, faixa, quadrado de
+   // inicial, listra). Medido: quando o acento era sempre t.borda, nos modos
+   // solido e escuro ele coincidia com o proprio fundo do card e a silhueta
+   // sumia — 43 temas viravam 5 retangulos chapados. Cada modo agora define
+   // um acento que contrasta com o fundo que ele mesmo usa.
+   const MODOS = {
+    claro:  (t) => ({ fundo: t.bg,      linha: t.borda,   acento: t.borda,  corTitulo: t.texto,   corSub: t.texto,   canvas: "#FFFFFF", raio: 8,  fonte: 13, fonteSub: 10, fam: "'Inter',sans-serif" }),
+    branco: (t) => ({ fundo: "#FFFFFF", linha: "#E2E8F0", acento: t.borda,  corTitulo: t.texto,   corSub: "#64748B", canvas: "#F8FAFC", raio: 14, fonte: 13, fonteSub: 10, fam: "'Inter',sans-serif" }),
+    escuro: (t) => ({ fundo: "#111827", linha: "#1F2937", acento: acentoContrastante(t, "#111827"), corTitulo: acentoContrastante(t, "#111827"), corSub: "#94A3B8", canvas: "#020617", raio: 4,  fonte: 13, fonteSub: 10, fam: "'Inter',sans-serif" }),
+    solido: (t) => ({ fundo: t.borda,   linha: t.texto,   acento: acentoContrastante(t, t.borda), corTitulo: "#FFFFFF", corSub: "#E5E7EB", canvas: "#F1F5F9", raio: 20, fonte: 13, fonteSub: 10, fam: "'Inter',sans-serif" }),
+    papel:  (t) => ({ fundo: "#FBF7EF", linha: "#D9CDB6", acento: t.borda,  corTitulo: t.texto,   corSub: "#6B5E4A", canvas: "#F3ECDF", raio: 2,  fonte: 13, fonteSub: 10, fam: "Georgia,'Times New Roman',serif" })
+   };
+
+   (function gerarTemas() {
+    CATALOGO.forEach((entrada) => {
+     const estrutura = entrada[0];
+     const modo = entrada[1];
+     const rotulo = entrada[2];
+     const escuro = modo === "escuro";
+
+     designs.push({
+      id: `t-${estrutura}-${modo}`,
+      label: rotulo,
+      background: MODOS[modo](TIPO_DESCONHECIDO).canvas,
+      apply: (c) =>
+       c
+        // Card dimensionado pelo RANK: SECRETARIA sai maior que DIVISAO,
+        // que sai maior que SETOR, que sai maior que COLABORADOR. A posicao
+        // na hierarquia continua legivel mesmo quando dois ranks caem na
+        // mesma linha — que e o caso de 93 pessoas no nivel 2 do arquivo.
+        .nodeWidth((d) => Math.round(268 * escalaPorRank(d)))
+        .nodeHeight((d) => Math.round(104 * escalaPorRank(d)))
+        .childrenMargin(() => 46)
+        .compactMarginBetween(() => 26)
+        .compactMarginPair(() => 40)
+        .neighbourMargin(() => 22)
+        .siblingsMargin(() => 22)
+        .buttonContent(({ node }) =>
+         `<div style="border:1px solid ${escuro ? "#334155" : "#CBD5E1"};background:${escuro ? "#0F172A" : "#FFFFFF"};color:${escuro ? "#E2E8F0" : "#475569"};border-radius:6px;padding:3px 6px;font-size:10px;font-family:'Inter',sans-serif;white-space:nowrap">${node.children ? "&#9650;" : "&#9660;"} ${node.data._directSubordinates}</div>`)
+        .linkUpdate(function (l) {
+         d3.select(this)
+          .attr("stroke", l.data._upToTheRootHighlighted ? "#DC2626" : escuro ? "#334155" : "#CBD5E1")
+          .attr("stroke-width", l.data._upToTheRootHighlighted ? 4 : 1.4);
+         if (l.data._upToTheRootHighlighted) d3.select(this).raise();
+        })
+        .nodeContent((d) => {
+         const t = d.data._tipo || TIPO_DESCONHECIDO;
+         const cfg = MODOS[modo](t);
+         cfg.nomeCru = d.data.name || "";
+         cfg.nome = escaparHtml(d.data.name);
+         cfg.sub = escaparHtml(d.data.positionName);
+         return `${selo(d)}
+           <div style="box-sizing:border-box;width:${d.width}px;height:${d.height}px;padding-top:9px;font-family:${cfg.fam}">
+            <div style="box-sizing:border-box;width:100%;height:${d.height - 9}px">${ESTRUTURAS[estrutura](d, t, cfg)}</div>
+           </div>`;
+        })
+     });
+    });
+   })();
 
    function buildDesignMenu() {
     const select = document.getElementById("theme-select");
@@ -602,11 +1387,6 @@
    // A única distinção categórica que resta é pessoa x unidade, que é real:
    // quem tem nome preenchido é colaborador.
 
-   // Rampa ordinal azul 700→250, validada com scripts/validate_palette.js
-   // (--ordinal, luz): matiz única, luminosidade monótona, degraus visíveis,
-   // ponta clara acima de 2:1 contra a superfície.
-   const RAMPA_NIVEL = ["#0d366b", "#184f95", "#256abf", "#3987e5", "#86b6ef"];
-   const COR_PESSOA = "#94a3b8";
 
    // Profundidade de cada id, contada a partir da raiz.
    var nivelPorId = new Map();
@@ -631,77 +1411,200 @@
     return nivelPorId.get(String(row.id)) || 0;
    }
 
-   function corDoNivel(nivel) {
-    return RAMPA_NIVEL[Math.min(nivel, RAMPA_NIVEL.length - 1)];
-   }
 
    // A etiqueta é a primeira palavra do rótulo, como está escrita no arquivo.
-   function etiquetaDe(row) {
+
+
+   var nomesDeUnidade = new Set();
+
+
+
+
+   // Distinção por campo `type` explícito — não por name vazio.
+   // Colaborador tem nome, unidade tem rótulo em position.
+   // Uma unidade e quem responde por ela sao a MESMA caixa do organograma.
+   // No arquivo elas vem em duas linhas: "Setor de Monitoramento e Avaliacao"
+   // e, pendurado abaixo, "Anderson Nascimento" com esse mesmo texto em
+   // `position`. Renderizar as duas produz 249 pares repetidos e faz o setor
+   // parecer o chefe da pessoa que o ocupa.
+   var titularPorUnidade = new Map();
+   var idsAbsorvidos = new Set();
+
+   // O selo do tipo e ACRESCENTADO por cima do card de cada tema, em posicao
+   // absoluta. Nenhuma linha do template original e alterada: os layouts
+   // continuam sendo os do repositorio, e o selo apenas se sobrepoe a eles.
+   //
+   // O texto do selo e o rotulo da CLASSE da taxonomia — nao mais a primeira
+   // palavra fatiada da string. Se a classe nao esta na tabela, o rotulo
+   // original do arquivo e preservado, sem inventar categoria.
+   function etiquetaDoNo(row) {
+    const chave = classificar(row);
+    if (chave) return TIPOS[chave].rotulo;
     const rotulo = String(row.position || "").trim();
-    if (!rotulo) return "";
-    const primeira = rotulo.split(/[\s,/-]+/)[0].toUpperCase();
-    return primeira.length > 2 ? primeira : rotulo.toUpperCase().slice(0, 14);
+    return rotulo ? rotulo.toUpperCase().slice(0, 18) : "";
    }
 
-   function textoSobre(cor) {
-    const m = /^#([0-9a-f]{6})$/i.exec(cor || "");
-    if (!m) return "#0b0b0b";
-    const n = parseInt(m[1], 16);
-    const canal = (c) => {
-     const v = c / 255;
-     return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    };
-    const lum =
-     0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255);
-    return 1.05 / (lum + 0.05) >= 4.5 ? "#ffffff" : "#0b0b0b";
+   // Cada uma das 15 classes tem selo PROPRIO: cor de fundo, cor de texto e
+   // FORMA diferentes. Duas classes nunca saem iguais na tela.
+   //   escudo  PREFEITURA      canto reto + faixa dourada
+   //   bloco   SECRETARIA/GABINETE/CONTROLADORIA   retangulo solido
+   //   chanfro COORDENADORIA/ASSESSOR/FUNDO/CHEFE/CONSELHO/GUARDA  canto cortado
+   //   faixa   DIVISAO/FUNDEB/CORPO   barra com risco lateral
+   //   aba     SETOR           canto inferior arredondado
+   //   pilula  COLABORADOR     vazado, totalmente arredondado
+   const FORMAS_SELO = {
+    escudo:  "border-radius:2px;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);padding:2px 9px 5px 9px;",
+    bloco:   "border-radius:2px;",
+    chanfro: "border-radius:2px;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px);",
+    faixa:   "border-radius:2px;border-left-width:4px;border-left-style:solid;",
+    aba:     "border-radius:2px 2px 8px 8px;",
+    pilula:  "border-radius:999px;"
+   };
+
+   function selo(d) {
+    const tipo = d.data._tipo || TIPO_DESCONHECIDO;
+    const texto = d.data._etiqueta || "";
+    if (!texto) return "";
+    const forma = FORMAS_SELO[tipo.forma] || FORMAS_SELO.bloco;
+    const base =
+     "position:absolute;top:-9px;left:10px;z-index:5;font-family:'Inter',sans-serif;" +
+     "font-size:8.5px;font-weight:700;letter-spacing:.7px;padding:2px 7px;" +
+     "white-space:nowrap;pointer-events:none;line-height:1.35;" +
+     `border:1px solid ${tipo.borda};background:${tipo.selo};color:${tipo.seloTexto};`;
+    return `<div style="${base}${forma}">${texto}</div>`;
    }
 
-   function iniciaisDe(row) {
-    const partes = `${row.name || ""} ${row.lastName || ""}`.trim().split(/\s+/).filter(Boolean);
-    if (!partes.length) return "";
-    return (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+   function nomeCompleto(row) {
+    return `${row.name || ""} ${row.lastName || ""}`.trim();
    }
 
+   // ABSORCAO DESLIGADA.
+   //
+   // Esta funcao fundia o primeiro ocupante DENTRO da caixa da unidade: o
+   // card do SETOR passava a exibir o nome da pessoa, e a linha da pessoa
+   // sumia do grafico. Medido no organograma-completo.csv: 178 unidades
+   // absorviam o titular, e o desenho caia de 629 para 451 cards.
+   //
+   // Isso quebra duas regras ao mesmo tempo: COLABORADOR nao e SETOR (um
+   // card de SETOR carregando identidade de pessoa), e nada pode ser
+   // omitido (178 pessoas desapareciam da tela).
+   //
+   // Agora cada linha do arquivo e um card, com o selo da propria classe.
+   // A funcao e mantida — junto de titularDe/linhasDoGrafico, que dependem
+   // dela — porque a estrutura de reparenteamento continua sendo o caminho
+   // por onde os filhos de um no removido seriam repassados; ela apenas
+   // nao absorve mais ninguem.
+   function mapearTitulares() {
+    titularPorUnidade = new Map();
+    idsAbsorvidos = new Set();
+   }
+
+   function repeteRotuloDoPai(row) {
+    const pai = currentData.find((r) => String(r.id) === String(row.parentId || "").trim());
+    if (!pai) return false;
+    return (
+     String(row.position || "").trim().toUpperCase() ===
+     String(pai.position || "").trim().toUpperCase()
+    );
+   }
+
+   function titularDe(row) {
+    return titularPorUnidade.get(String(row.id)) || null;
+   }
+
+   // Quem foi absorvido some como card, mas os subordinados dele nao podem
+   // sumir junto: passam a responder direto a unidade.
+   // Irmaos saem ORDENADOS POR RANK: sob uma SECRETARIA vem primeiro
+   // COORDENADORIA e ASSESSOR (rank 2), depois DIVISAO (3), depois SETOR (4)
+   // e por ultimo COLABORADOR (5). Medido no arquivo: no nivel 2 havia 93
+   // pessoas embaralhadas entre 16 coordenadorias, 15 assessorias e 23
+   // divisoes, e a linha lia como se pessoa e orgao fossem pares.
+   //
+   // Isto muda apenas a ORDEM DE DESENHO. Nenhum parentId e alterado: a
+   // arvore do arquivo continua exatamente a mesma.
+   function linhasDoGrafico() {
+    const paiDe = new Map();
+    for (const [idUnidade, titular] of titularPorUnidade) {
+     paiDe.set(String(titular.id), idUnidade);
+    }
+    const linhas = currentData
+     .filter((row) => !idsAbsorvidos.has(String(row.id)))
+     .map((row) => {
+      const novoPai = paiDe.get(String(row.parentId || "").trim());
+      return novoPai ? Object.assign({}, row, { parentId: novoPai }) : row;
+     });
+
+    return linhas.sort((a, b) => {
+     const pa = String(a.parentId || "").trim();
+     const pb = String(b.parentId || "").trim();
+     if (pa !== pb) return 0;
+     const ra = rankDe(a);
+     const rb = rankDe(b);
+     if (ra !== rb) return ra - rb;
+     return rotuloLegivel(a).localeCompare(rotuloLegivel(b), "pt-BR");
+    });
+   }
+
+   // Mantida porque mapearTitulares/linhasDoGrafico dependem dela, mas agora
+   // e DERIVADA da taxonomia em vez de ser a classificacao. Ela responde
+   // apenas "isto ocupa uma caixa de unidade?" — a classe real de cada no
+   // vem de classificar()/tipoDe(), que distingue as 15.
    function ehUnidade(row) {
-    return !`${row.name || ""} ${row.lastName || ""}`.trim();
+    return !ehColaborador(row);
    }
 
-   function tituloDe(row) {
-    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
-    return pessoa || row.position || `#${row.id}`;
+   // Era um TERCEIRO classificador, com baldes proprios em minusculas
+   // ("unidade", "gabinete"...), concorrendo com classificar() e com
+   // ehUnidade(). Tres verdades diferentes sobre a mesma linha. Agora ha
+   // uma so: a taxonomia. A funcao continua existindo e responde o mesmo
+   // formato de antes, mas derivado de classificar().
+   function tipoUnidade(row) {
+    const chave = classificar(row);
+    if (!chave || chave === "COLABORADOR") return "unidade";
+    return chave.toLowerCase();
    }
+
 
    // Em caixa de unidade o department_name é sempre a secretaria de cima, que a
    // própria árvore já mostra — e truncado ("SECRETARIA MUNICIPAL DE ASSISTÊ…")
    // não informa nada. O subtítulo fica reservado para cargo de pessoa.
    function toChartRow(row) {
-    // Numa caixa de unidade o rótulo é o próprio `position`; usá-lo como
-    // título evita o card sair com o nome em branco.
-    const unidade = ehUnidade(row);
+    const titular = titularDe(row);
+    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
+    const tipo = tipoDe(row);
     return Object.assign({}, row, {
-     // A lib decide o que abrir a partir desta flag. toChartRow cria objetos
-     // novos a cada render, então ela precisa ser reaplicada aqui — senão o
-     // que estava aberto volta a fechar.
-     _expanded: expandidos.has(String(row.id)),
      id: row.id,
      parentId: row.parentId,
-     name: tituloDe(row),
-     positionName: unidade ? "" : row.position || "",
-     _nivel: nivelDe(row),
-     _cor: unidade ? corDoNivel(nivelDe(row)) : COR_PESSOA,
-     _tipo: unidade ? etiquetaDe(row) : "pessoa",
-     // Quando o nome da unidade JÁ é o tipo ("COORDENADORIA"), repetir a
-     // etiqueta em cima do nome é ruído.
-     _rotuloTipo:
-      unidade && etiquetaDe(row) !== String(row.position || "").trim().toUpperCase()
-       ? etiquetaDe(row)
-       : "",
-     _sigla: iniciaisDe(row),
-     _ehUnidade: unidade,
-     imageUrl: row.image || "",
+     // Caixa de unidade: o nome e o rotulo dela e a segunda linha e quem
+     // responde por ela. Caixa de pessoa sem unidade propria: nome e cargo.
+     name: pessoa || row.position || `#${row.id}`,
+     // 54 unidades tem mais de um ocupante com o mesmo rotulo (dois nomes no
+     // mesmo setor). O primeiro encabeca a caixa da unidade; repetir o nome
+     // dela no subtitulo dos outros so duplica o que a arvore ja mostra.
+     positionName: pessoa
+      ? repeteRotuloDoPai(row)
+        ? ""
+        : row.position || ""
+      : titular
+      ? nomeCompleto(titular)
+      : "",
+     // Os cards originais leem `position` direto; sem espelhar aqui, a unidade
+     // aparece com o proprio nome repetido na segunda linha.
+     _etiqueta: etiquetaDoNo(row),
+     _souUnidade: !pessoa,
+     _tipo: tipo,
+     _tipoNome: classificar(row) || "UNIDADE",
+     position: pessoa
+      ? repeteRotuloDoPai(row)
+        ? ""
+        : row.position || ""
+      : titular
+      ? nomeCompleto(titular)
+      : "",
+     imageUrl: (titular ? titular.image : row.image) || "",
      area: row.department_name || "",
      office: row.location_state || row.department_name || "",
-     email: row.email || ""
+     email: (titular ? titular.email : row.email) || ""
     });
    }
 
@@ -813,41 +1716,22 @@
     }, 550);
    }
 
-   // A legenda explica o que a cor significa: profundidade na árvore. Antes ela
-   // listava tipos que eu havia agrupado por conta própria.
-   function montarLegenda() {
-    const profundidades = [...new Set(currentData.map((r) => nivelDe(r)))].sort((a, b) => a - b);
-    const maior = Math.min(profundidades[profundidades.length - 1] || 0, RAMPA_NIVEL.length - 1);
-    const itens = [];
-    for (let n = 0; n <= maior; n++) {
-     itens.push(
-      `<span class="legenda__item"><i style="background:${corDoNivel(n)}"></i>${
-       n === 0 ? "Nível 1 (raiz)" : "Nível " + (n + 1)
-      }${n === RAMPA_NIVEL.length - 1 && maior === n ? "+" : ""}</span>`
-     );
-    }
-    itens.push(
-     `<span class="legenda__item"><i style="background:${COR_PESSOA};border-radius:100px"></i>Colaborador</span>`
-    );
-    document.getElementById("legenda").innerHTML = itens.join("");
-   }
-
    function afterRender() {
     requestAnimationFrame(() => {
      attachEmailOverlay();
      applySelectionStyle();
-     montarLegenda();
     });
    }
 
    function renderDesign() {
+    mapearTitulares();
     calcularNiveis();
     const design = activeDesign();
     const container = document.querySelector(".chart-container");
     container.innerHTML = "";
     container.style.backgroundColor = design.background;
 
-    let rows = currentData.map(toChartRow);
+    let rows = linhasDoGrafico().map(toChartRow);
     if (design.prepare) rows = design.prepare(rows);
 
     chart = new d3.OrgChart()
@@ -893,22 +1777,20 @@
    var layoutAtual = "top";
    const LAYOUTS = ["top", "right", "bottom", "left"];
 
-   // Abre só a linha da raiz até o nó e fecha o resto. Sem isto, criar alguém
-   // no fundo da árvore expandia todos os ancestrais de uma vez e cada um
-   // despejava os próprios filhos: 1 pessoa criada, dezenas de cards na tela.
+   // Garante que o nó esteja visível ABRINDO o caminho até ele — sem fechar
+   // nada. A versão anterior substituía a lista de nós abertos por esse
+   // caminho, então adicionar uma pessoa fechava todos os ramos que o usuário
+   // tinha aberto: 50 cards na tela viravam 26 sem ninguém pedir.
    function focarCaminho(id) {
-    const caminho = new Set();
     let atual = currentData.find((r) => String(r.id) === String(id));
-    while (atual && !caminho.has(String(atual.id))) {
-     caminho.add(String(atual.id));
+    const visto = new Set();
+    while (atual && !visto.has(String(atual.id))) {
+     visto.add(String(atual.id));
+     expandidos.add(String(atual.id));
      atual = currentData.find((r) => String(r.id) === String(atual.parentId));
     }
-    expandidos = caminho;
    }
 
-   // A lib usa _expanded para abrir os ANCESTRAIS do nó marcado — não os
-   // filhos dele. Então o que precisa ser guardado é a lista de nós visíveis:
-   // cada um puxa o próprio caminho de volta ao ser restaurado.
    function capturarExpandidos() {
     if (!chart) return;
     const state = chart.getChartState();
@@ -1156,7 +2038,9 @@
    function nodeLabel(id) {
     const row = currentData.find((r) => String(r.id) === String(id));
     if (!row) return `#${id}`;
-    const titulo = tituloDe(row);
+    // Era tituloDe(), que nao existe: qualquer chamada lancava
+    // ReferenceError e derrubava abrirEditor() inteiro.
+    const titulo = rotuloLegivel(row);
     const complemento = ehUnidade(row) ? "" : row.position ? " — " + row.position : "";
     return `#${id} • ${titulo}${complemento}`;
    }
@@ -1219,43 +2103,40 @@
     setStatus("SVG exportado");
    }
 
+   // Usava dois prompt() crus e gravava name direto, entao TODO no criado
+   // saia COLABORADOR: nao havia como cadastrar SECRETARIA, DIVISAO ou SETOR
+   // pela interface. Agora abre o mesmo editor da acao Editar, que tem
+   // validacao, seletor de tipo e escolha de chefe.
    function addSampleNode() {
     const parentId = requireSelection("adicionar um subordinado");
     if (!parentId) return;
-    const name = (prompt(`Nome do novo subordinado de ${nodeLabel(parentId)}:`) || "").trim();
-    if (!name) return setStatus("Nada adicionado: o nome é obrigatório", true);
-    const position = (prompt(`Cargo de ${name}:`, "Analista") || "").trim();
-    if (!position) return setStatus("Nada adicionado: o cargo é obrigatório", true);
     const parentRow = currentData.find((r) => String(r.id) === String(parentId));
+    if (!parentRow) return setStatus("Chefe não encontrado", true);
+
+    if (ehColaborador(parentRow)) {
+     return setStatus(
+      `${nodeLabel(parentId)} é COLABORADOR e não pode ter subordinados. Selecione uma unidade.`,
+      true
+     );
+    }
+
     const id = proximoId();
     pushUndo();
+    novoNoPendente = id;
     currentData.push({
      id,
      parentId,
-     name,
+     name: "",
      lastName: "",
-     position,
+     position: "",
+     type: "",
      email: "",
-     department_name: (parentRow && parentRow.department_name) || "Equipe",
+     department_name: (parentRow && parentRow.department_name) || "",
+     location_state: (parentRow && parentRow.location_state) || "",
      image: ""
     });
-    selectNode(id);
-    salvarNoServidor();
-    focarCaminho(id);
-    renderDesign();
-    fitLegivel(id);
-    afterRender();
-    salvarVisual();
-    // Mostrar alguém no fundo da árvore obriga a abrir os pais, e abrir um pai
-    // revela os irmãos. Sem dizer isso, parece que a app criou várias pessoas.
-    const irmaos = currentData.filter(
-     (r) => String(r.parentId) === String(parentId) && String(r.id) !== String(id)
-    ).length;
-    setStatus(
-     irmaos
-      ? `1 pessoa adicionada sob ${nodeLabel(parentId)}: ${name} — ${position}. Os outros ${irmaos} cards ao lado são a equipe que já existia. Total: ${currentData.length} pessoas.`
-      : `1 pessoa adicionada sob ${nodeLabel(parentId)}: ${name} — ${position}. Total: ${currentData.length} pessoas.`
-    );
+    abrirEditor(id);
+    setStatus(`Novo nó sob ${nodeLabel(parentId)} — preencha e salve`);
    }
 
    // ----------------------------- editor de card -----------------------------
@@ -1273,15 +2154,46 @@
     CAMPOS_EDITAVEIS.forEach((campo) => {
      document.getElementById("ed-" + campo).value = row[campo] || "";
     });
+    montarSelectTipo(row);
     atualizarPreview(row.image);
     montarSelectChefe(editandoId, row.parentId);
     document.getElementById("ed-erro").textContent = "";
+    document.getElementById("editor-titulo").textContent =
+     novoNoPendente && String(novoNoPendente) === String(alvo) ? "Novo nó" : "Editar nó";
     document.getElementById("editor").hidden = false;
     document.getElementById("ed-name").focus();
     setStatus(`Editando ${nodeLabel(editandoId)}`);
    }
 
+   // O editor nao tinha campo de tipo: qualquer no criado ou editado saia
+   // classificado pelo texto do cargo, e nao havia como cadastrar uma
+   // SECRETARIA, uma DIVISAO ou um SETOR pela interface — so COLABORADOR.
+   function montarSelectTipo(row) {
+    const select = document.getElementById("ed-type");
+    const atual = classificar(row);
+    select.innerHTML = "";
+    Object.keys(TIPOS)
+     .sort((a, b) => TIPOS[a].rank - TIPOS[b].rank || a.localeCompare(b, "pt-BR"))
+     .forEach((chave) => {
+      select.appendChild(
+       new Option(`${TIPOS[chave].rotulo}  (nivel ${TIPOS[chave].rank})`, chave)
+      );
+     });
+    select.value = atual || "COLABORADOR";
+   }
+
+   // Cancelar um no recem-criado tem que desfazer a criacao, senao fica uma
+   // linha em branco na arvore.
    function fecharEditor() {
+    if (novoNoPendente) {
+     const alvo = String(novoNoPendente);
+     novoNoPendente = null;
+     currentData = currentData.filter((r) => String(r.id) !== alvo);
+     selectNode(null);
+     renderDesign();
+     afterRender();
+     setStatus("Criação cancelada");
+    }
     document.getElementById("editor").hidden = true;
     editandoId = null;
    }
@@ -1301,12 +2213,20 @@
      return;
     }
 
+    // Ordenava por `${name} ${lastName}`, que e vazio nas 299 unidades do
+    // arquivo: todas empatavam em "" e saiam listadas como "#123". E oferecia
+    // COLABORADOR como chefe possivel, o que cria pessoa chefiando orgao.
     currentData
      .filter((row) => !proibidos.has(String(row.id)))
-     .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "pt-BR"))
-     .forEach((row) => {
-      const nome = `${row.name || ""} ${row.lastName || ""}`.trim() || `#${row.id}`;
-      select.appendChild(new Option(`${nome}${row.position ? " — " + row.position : ""}`, row.id));
+     .filter((row) => !ehColaborador(row))
+     .map((row) => ({ row: row, tipo: tipoDe(row), rotulo: rotuloLegivel(row) }))
+     .sort((a, b) =>
+      a.tipo.rank !== b.tipo.rank
+       ? a.tipo.rank - b.tipo.rank
+       : a.rotulo.localeCompare(b.rotulo, "pt-BR")
+     )
+     .forEach((item) => {
+      select.appendChild(new Option(`${item.tipo.rotulo} · ${item.rotulo}`, item.row.id));
      });
     select.value = String(parentIdAtual || "");
    }
@@ -1438,21 +2358,49 @@
     const select = document.getElementById("ed-parentId");
     const novoChefe = select.disabled ? row.parentId : select.value;
     const mudouChefe = String(novoChefe || "") !== String(row.parentId || "");
+    const novoTipo = document.getElementById("ed-type").value;
 
-    pushUndo();
+    // Hierarquia validada ANTES de gravar: um SETOR nao entra sob um
+    // COLABORADOR, e uma SECRETARIA nao entra sob um SETOR. A regra e a
+    // mesma de validarHierarquia(), aplicada no momento da edicao para o
+    // arquivo nunca chegar a ficar invalido.
+    const chefeRow = currentData.find((r) => String(r.id) === String(novoChefe));
+    if (chefeRow) {
+     const rankFilho = (TIPOS[novoTipo] || TIPO_DESCONHECIDO).rank;
+     const tipoChefe = tipoDe(chefeRow);
+     if (ehColaborador(chefeRow)) {
+      erro.textContent = `${rotuloLegivel(chefeRow)} é COLABORADOR e não pode ter subordinados`;
+      return;
+     }
+     if (rankFilho < tipoChefe.rank) {
+      erro.textContent =
+       `${(TIPOS[novoTipo] || TIPO_DESCONHECIDO).rotulo} não pode responder a ${tipoChefe.rotulo}`;
+      return;
+     }
+    }
+
+    // Um no criado por Add Node ja empilhou o undo; empilhar de novo aqui
+    // faria um unico Ctrl+Z desfazer so metade da operacao.
+    const eraNovo = novoNoPendente && String(novoNoPendente) === String(editandoId);
+    if (!eraNovo) pushUndo();
+    novoNoPendente = null;
+
     Object.assign(row, valores);
+    row.type = novoTipo;
     if (mudouChefe) row.parentId = novoChefe;
 
     fecharEditor();
-    selectNode(editandoId);
+    selectNode(row.id);
     salvarNoServidor();
-    if (mudouChefe) focarCaminho(row.id);
+    if (mudouChefe || eraNovo) focarCaminho(row.id);
     renderDesign();
     fitLegivel(row.id);
     afterRender();
     salvarVisual();
     setStatus(
-     mudouChefe
+     eraNovo
+      ? `Criado: ${tipoDe(row).rotulo} ${rotuloLegivel(row)} sob ${nodeLabel(row.parentId)}. Total: ${currentData.length}.`
+      : mudouChefe
       ? `Salvo: ${nodeLabel(row.id)} agora responde a ${nodeLabel(novoChefe)}`
       : `Salvo: ${nodeLabel(row.id)}`
     );
@@ -1576,6 +2524,14 @@
       `A linha ${orphan.id} aponta para um parentId inexistente (${orphan.parentId})`
      );
     }
+    // Validar tipo
+    const TIPOS_VALIDOS = new Set(["secretaria","divisao","setor","colaborador","orgao","gabinete","coordenadoria","assessor","fundo","unidade"]);
+    for (const row of rows) {
+     const tipo = String(row.type || "").trim().toLowerCase();
+     if (tipo && !TIPOS_VALIDOS.has(tipo)) {
+      throw new Error(`Tipo inválido na linha ${row.id}: "${tipo}"`);
+     }
+    }
    }
 
    function parseInput(text, name) {
@@ -1653,6 +2609,7 @@
         throw new Error("O arquivo precisa ter, em cada linha, um id e um nome ou cargo");
        }
        validateRows(validRows);
+       validarHierarquia(validRows);
        currentData = validRows;
        selectNode(null);
        undoStack.length = 0;
@@ -1675,7 +2632,7 @@
     });
    }
 
-   const CSV_COLUMNS = ["id", "parentId", "name", "lastName", "position", "email", "department_name", "location_state", "image"];
+   const CSV_COLUMNS = ["id", "parentId", "name", "lastName", "position", "type", "email", "department_name", "location_state", "image"];
 
    function exportRows() {
     return CSV_COLUMNS.map((column) => `"${column.replace(/"/g, '""')}"`).join(",")

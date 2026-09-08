@@ -45,6 +45,36 @@ function json(res, status, corpo) {
 // Mesmas regras do front: um organograma sem raiz, com id repetido ou com pai
 // inexistente não desenha. Validar aqui evita gravar um arquivo que deixaria a
 // página em branco no próximo acesso de todo mundo.
+const TIPOS_VALIDOS = new Set(["secretaria", "divisao", "setor", "colaborador", "orgao", "gabinete", "coordenadoria", "assessor", "fundo", "unidade"]);
+
+function classificarTipo(linha) {
+  const nome = String(linha.name ?? "").trim();
+  const pos = String(linha.position ?? "").trim();
+  const dept = String(linha.department_name ?? "").trim();
+  const temNome = nome.length > 0;
+  const tipoInformado = String(linha.type ?? "").trim().toLowerCase();
+
+  // Se o tipo foi informado explicitamente, valida
+  if (tipoInformado) {
+    if (!TIPOS_VALIDOS.has(tipoInformado)) return `tipo inválido na linha ${linha.id}: "${tipoInformado}"`;
+    return null;
+  }
+
+  // Inferência por conteúdo: nome vazio = unidade, senão = colaborador
+  if (!temNome) {
+    const rotulo = (pos || dept).toLowerCase();
+    if (rotulo.includes("secretaria")) return "secretaria";
+    if (rotulo.includes("divisão") || rotulo.includes("divisao")) return "divisao";
+    if (rotulo.includes("setor")) return "setor";
+    if (rotulo.includes("coordenadoria")) return "coordenadoria";
+    if (rotulo.includes("gabinete")) return "gabinete";
+    if (rotulo.includes("fundo") || rotulo.includes("fumtur") || rotulo.includes("fundeb")) return "fundo";
+    if (rotulo.includes("assessor")) return "assessor";
+    return "unidade";
+  }
+  return "colaborador";
+}
+
 function validar(linhas) {
   if (!Array.isArray(linhas) || !linhas.length) return "envie uma lista de pessoas";
   const ids = new Set();
@@ -70,6 +100,17 @@ function validar(linhas) {
       if (visto.has(atual)) return `há um ciclo de chefia envolvendo ${id}`;
       visto.add(atual);
       atual = paiDe.get(atual);
+    }
+  }
+  // Validar tipo e classificação
+  for (const linha of linhas) {
+    const tipo = classificarTipo(linha);
+    if (typeof tipo === "string" && tipo.startsWith("tipo inválido")) return tipo;
+    // Colaborador nunca pode ser pai de outro nó (não é unidade)
+    const temNome = String(linha.name ?? "").trim();
+    if (temNome) {
+      const filhos = linhas.filter(l => String(l.parentId ?? "").trim() === String(linha.id));
+      if (filhos.length > 0) return `${linha.id} é colaborador (tem nome) mas possui ${filhos.length} subordinado(s) — colaborador não pode ser pai`;
     }
   }
   return null;
