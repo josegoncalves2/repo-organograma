@@ -415,3 +415,28 @@ body {
       min-height: 70vh;
    }
 }
+/* ===== Legenda de tipos ===== */
+.legenda {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 14px;
+   margin-left: auto;
+   align-items: center;
+}
+
+.legenda__item {
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 11px;
+   color: #475569;
+   white-space: nowrap;
+}
+
+.legenda__item i {
+   width: 11px;
+   height: 11px;
+   border-radius: 3px;
+   display: inline-block;
+   flex: 0 0 auto;
+}

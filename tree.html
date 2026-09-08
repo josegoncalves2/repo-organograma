@@ -46,13 +46,14 @@
    <label class="file-upload">
     <span class="file-upload__label">
      <i class="fas fa-file-csv"></i>
-     Carregar CSV
+     Carregar CSV + fotos
     </span>
     <input
      type="file"
      id="csv-input"
-     accept=".csv,text/csv,.json,application/json"
-     title="Selecione um arquivo CSV ou JSON"
+     accept=".csv,text/csv,.json,application/json,image/*"
+     multiple
+     title="Selecione o CSV e as fotos juntos (Ctrl+A na pasta)"
     />
    </label>
 
@@ -260,6 +261,7 @@
   <div class="status-bar">
    <span class="status-bar__dot"></span>
    <span id="status-msg">Carregando…</span>
+   <span class="legenda" id="legenda"></span>
   </div>
 
   <div class="chart-wrapper">
@@ -269,7 +271,7 @@
   <div class="drop-overlay" id="drop-overlay">
    <div class="drop-overlay__content">
     <i class="fas fa-cloud-upload-alt"></i>
-    Solte o arquivo CSV aqui
+    Solte aqui o CSV e as fotos
    </div>
   </div>
 
@@ -291,7 +293,6 @@
    // apresentado como se fosse informação da pessoa.
    // ---------------------------------------------------------------------
 
-   var index = 0;
    var chart;
    var currentDesign = "default";
    var currentData = [];
@@ -308,49 +309,53 @@
      // override de layoutBindings). Sem ele, a lib cai no nodeContent padrão,
      // que é só o placeholder "Sample Node(id=…), override using…".
      apply: (c) => {
-      c.nodeHeight((d) => 85 + 25)
-       .nodeWidth((d) => {
-        return 220 + 2;
-       })
+      c.nodeHeight((d) => 104)
+       .nodeWidth((d) => 222)
        .childrenMargin((d) => 50)
        .compactMarginBetween((d) => 35)
        .compactMarginPair((d) => 30)
        .neighbourMargin((a, b) => 20)
        .nodeContent(function (d, i, arr, state) {
-        const color = "#FFFFFF";
-        const imageDiffVert = 25 + 2;
-        return `
-                <div style='width:${d.width}px;height:${
-         d.height
-        }px;padding-top:${
-         imageDiffVert - 2
-        }px;padding-left:1px;padding-right:1px'>
-                    <div style="font-family: 'Inter', sans-serif;background-color:${color};  margin-left:-1px;width:${
-         d.width - 2
-        }px;height:${
-         d.height - imageDiffVert
-        }px;border-radius:10px;border: 1px solid #E4E2E9">
-                        <div style="display:flex;justify-content:flex-end;margin-top:5px;margin-right:5px">#${
-                         d.data.id
-                        }</div>
-                        <div style="background-color:${color};margin-top:${
-         -imageDiffVert - 20
-        }px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
-                        <div style="margin-top:${
-                         -imageDiffVert - 20
-                        }px;">   <img src=" ${
-         d.data.image
-        }" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
-                        <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:10px">  ${
-                         d.data.name
-                        } </div>
-                        <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
-                         d.data.position
-                        } </div>
+        // Distinguir tipo só por tom de azul não funcionou: numa tarja de 5px,
+        // #184f95 e #256abf são o mesmo azul a olho nu. O guia de dataviz é
+        // explícito — identidade nunca pode depender só da cor. Então o tipo
+        // vai ESCRITO no card, e unidade x pessoa se separam pela forma:
+        // unidade tem faixa de cabeçalho preenchida, pessoa tem foto e fundo
+        // branco. A cor continua ordenando os níveis, mas agora é reforço.
+        const cor = d.data._cor || "#94a3b8";
+        const unidade = d.data._ehUnidade;
+        const titulo = d.data.name || "";
+        const tinta = textoSobre(cor);
 
-                    </div>
-                </div>
-                        `;
+        if (unidade) {
+         const corpo = titulo.length > 60 ? 11 : titulo.length > 34 ? 12 : 13.5;
+         return `
+          <div style="width:${d.width}px;height:${d.height}px;padding:4px 1px 0">
+            <div style="font-family:'Inter',sans-serif;background:#fff;width:${d.width - 2}px;height:${d.height - 6}px;border-radius:10px;border:1px solid #E4E2E9;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
+              <div style="background:${cor};color:${tinta};padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:.7px;display:flex;justify-content:space-between;align-items:center;flex:0 0 auto">
+                <span>${d.data._rotuloTipo || ""}</span><span style="opacity:.75">#${d.data.id}</span>
+              </div>
+              <div style="padding:8px 12px;flex:1 1 auto;display:flex;align-items:center">
+                <div style="font-size:${corpo}px;line-height:1.25;color:#0b0b0b;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${titulo}</div>
+              </div>
+            </div>
+          </div>`;
+        }
+
+        const avatar = d.data.imageUrl
+         ? `<img src="${d.data.imageUrl}" alt="" style="width:34px;height:34px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
+         : `<div style="width:34px;height:34px;border-radius:100px;background:#e2e8f0;color:#64748b;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla || ""}</div>`;
+        return `
+          <div style="width:${d.width}px;height:${d.height}px;padding:4px 1px 0">
+            <div style="font-family:'Inter',sans-serif;background:#fff;width:${d.width - 2}px;height:${d.height - 6}px;border-radius:10px;border:1px dashed #cbd5e1;box-sizing:border-box;padding:10px 12px;display:flex;gap:10px;align-items:center;overflow:hidden;position:relative">
+              <div style="position:absolute;top:5px;right:8px;font-size:9px;color:#94a3b8">#${d.data.id}</div>
+              ${avatar}
+              <div style="min-width:0">
+                <div style="font-size:13px;line-height:1.2;color:#0b0b0b;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titulo}</div>
+                ${d.data.positionName ? `<div style="color:#52514e;font-size:10px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName}</div>` : ""}
+              </div>
+            </div>
+          </div>`;
        });
 
       c.layoutBindings(
@@ -378,43 +383,38 @@
        .compactMarginBetween((d) => 15)
        .compactMarginPair((d) => 80)
        .nodeContent(function (d, i, arr, state) {
-        return `
-            <div style="padding-top:30px;background-color:none;margin-left:1px;height:${
-             d.height
-            }px;border-radius:2px;overflow:visible">
-              <div style="height:${
-               d.height - 32
-              }px;padding-top:0px;background-color:white;border:1px solid lightgray;">
-
-                <img src=" ${
-                 d.data.imageUrl
-                }" style="margin-top:-30px;margin-left:${
-         d.width / 2 - 30
-        }px;border-radius:100px;width:60px;height:60px;" />
-
-               <div style="margin-right:10px;margin-top:15px;float:right">${
-                d.data.id
-               }</div>
-
-               <div style="margin-top:-30px;background-color:#3AB6E3;height:10px;width:${
-                d.width - 2
-               }px;border-radius:1px"></div>
-
-               <div style="padding:20px; padding-top:35px;text-align:center">
-                   <div style="color:#111672;font-size:16px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
-                    d.data.name
-                   } </div>
-                   <div style="color:#404040;font-size:16px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
-                    d.data.positionName
-                   } </div>
-               </div>
-               <div style="display:flex;justify-content:space-between;padding-left:15px;padding-right:15px;">
-                 <div > Manages:  ${d.data._directSubordinates} 👤</div>
-                 <div > Oversees: ${d.data._totalSubordinates} 👤</div>
-               </div>
+        // Unidade e colaborador sao coisas diferentes, entao sao dois cards
+        // diferentes: unidade tem cabecalho preenchido com o tipo escrito;
+        // pessoa tem retrato e moldura tracejada. A cor apenas ordena o nivel.
+        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
+        if (d.data._ehUnidade) {
+         return `
+            <div style="padding-top:12px;height:${d.height}px">
+              <div style="height:${d.height - 14}px;background:#fff;border:1px solid #d6dae2;border-radius:4px;overflow:hidden;display:flex;flex-direction:column">
+                <div style="background:${cor};color:${tinta};padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:.8px;display:flex;justify-content:space-between">
+                  <span>${d.data._rotuloTipo}</span><span style="opacity:.75">#${d.data.id}</span>
+                </div>
+                <div style="flex:1;display:flex;align-items:center;padding:12px 16px">
+                  <div style="color:#111672;font-size:${nome.length > 44 ? 13 : 16}px;font-weight:700;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
+                </div>
+                <div style="border-top:1px solid #eef1f5;padding:6px 16px;font-size:11px;color:#52514e">${d.data._directSubordinates} diretos, ${d.data._totalSubordinates} no total</div>
               </div>
-      </div>
-  `;
+            </div>`;
+        }
+        const foto = d.data.imageUrl
+         ? `<img src="${d.data.imageUrl}" alt="" style="width:56px;height:56px;border-radius:100px;object-fit:cover;border:3px solid #fff" />`
+         : `<div style="width:56px;height:56px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;border:3px solid #fff">${d.data._sigla}</div>`;
+        return `
+            <div style="padding-top:30px;height:${d.height}px">
+              <div style="height:${d.height - 32}px;background:#fff;border:1px dashed #b9c2cf;border-radius:4px;text-align:center;position:relative">
+                <div style="margin-top:-30px">${foto}</div>
+                <div style="position:absolute;top:8px;right:10px;font-size:10px;color:#94a3b8">#${d.data.id}</div>
+                <div style="padding:10px 16px">
+                  <div style="color:#0b0b0b;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+                  <div style="color:#52514e;font-size:12px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName || ""}</div>
+                </div>
+              </div>
+            </div>`;
        })
     },
 
@@ -445,54 +445,25 @@
         }
        })
        .nodeContent(function (d, i, arr, state) {
-        const colors = [
-         "#6E6B6F",
-         "#18A8B6",
-         "#F45754",
-         "#96C62C",
-         "#BD7E16",
-         "#802F74"
-        ];
-        const color = colors[d.depth % colors.length];
-        const imageDim = 80;
-        const lightCircleDim = 95;
-        const outsideCircleDim = 110;
-
+        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
+        const unidade = d.data._ehUnidade;
+        const dim = 78, anel = 92;
+        // Unidade: disco cheio da cor do nivel. Pessoa: retrato com aro neutro.
+        const miolo = unidade
+         ? `<div style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;background:${cor};color:${tinta};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:center;padding:6px;box-sizing:border-box;line-height:1.2">${d.data._rotuloTipo.split(" / ")[0]}</div>`
+         : d.data.imageUrl
+         ? `<img src="${d.data.imageUrl}" alt="" style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;object-fit:cover" />`
+         : `<div style="position:absolute;margin-top:-${dim / 2}px;margin-left:${d.width / 2 - dim / 2}px;width:${dim}px;height:${dim}px;border-radius:100px;background:#e2e8f0;color:#52514e;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${d.data._sigla}</div>`;
         return `
-                <div style="background-color:white; position:absolute;width:${
-                 d.width
-                }px;height:${d.height}px;">
-                   <div style="background-color:${color};position:absolute;margin-top:-${
-         outsideCircleDim / 2
-        }px;margin-left:${
-         d.width / 2 - outsideCircleDim / 2
-        }px;border-radius:100px;width:${outsideCircleDim}px;height:${outsideCircleDim}px;"></div>
-                   <div style="background-color:#ffffff;position:absolute;margin-top:-${
-                    lightCircleDim / 2
-                   }px;margin-left:${
-         d.width / 2 - lightCircleDim / 2
-        }px;border-radius:100px;width:${lightCircleDim}px;height:${lightCircleDim}px;"></div>
-                   <img src=" ${
-                    d.data.imageUrl
-                   }" style="position:absolute;margin-top:-${
-         imageDim / 2
-        }px;margin-left:${
-         d.width / 2 - imageDim / 2
-        }px;border-radius:100px;width:${imageDim}px;height:${imageDim}px;" />
-                   <div class="card" style="top:${
-                    outsideCircleDim / 2 + 10
-                   }px;position:absolute;height:30px;width:${
-         d.width
-        }px;background-color:#3AB6E3;">
-                      <div style="background-color:${color};height:28px;text-align:center;padding-top:10px;color:#ffffff;font-weight:bold;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          ${d.data.name}
-                      </div>
-                      <div style="background-color:#F0EDEF;height:28px;text-align:center;padding-top:10px;color:#424142;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          ${d.data.positionName}
-                      </div>
+                <div style="background:#fff;position:absolute;width:${d.width}px;height:${d.height}px">
+                   <div style="position:absolute;margin-top:-${anel / 2}px;margin-left:${d.width / 2 - anel / 2}px;width:${anel}px;height:${anel}px;border-radius:100px;background:${unidade ? cor : "#cbd5e1"}"></div>
+                   <div style="position:absolute;margin-top:-${(anel - 8) / 2}px;margin-left:${d.width / 2 - (anel - 8) / 2}px;width:${anel - 8}px;height:${anel - 8}px;border-radius:100px;background:#fff"></div>
+                   ${miolo}
+                   <div style="top:${anel / 2 + 8}px;position:absolute;width:${d.width}px;text-align:center">
+                      <div style="font-size:${nome.length > 34 ? 11 : 13}px;font-weight:700;color:#0b0b0b;padding:0 8px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
+                      <div style="font-size:10px;color:#52514e;margin-top:3px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unidade ? d.data._rotuloTipo : d.data.positionName || ""}</div>
                    </div>
-               </div>
-  `;
+               </div>`;
        })
     },
 
@@ -520,35 +491,25 @@
         }</span> ${node.data._directSubordinates}  </div>`;
        })
        .nodeContent(function (d, i, arr, state) {
-        const colors = ["#278B8D", "#404040", "#0C5C73", "#33C6CB"];
-        const color = colors[d.depth % colors.length];
+        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
+        if (d.data._ehUnidade) {
+         return `
+            <div style="position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:50px;background:${cor};color:${tinta};display:flex;flex-direction:column;justify-content:center;padding:0 22px;box-sizing:border-box">
+               <div style="font-size:9px;font-weight:700;letter-spacing:.8px;opacity:.85">${d.data._rotuloTipo}</div>
+               <div style="font-size:${nome.length > 40 ? 11 : 13}px;font-weight:700;line-height:1.2;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
+            </div>`;
+        }
+        const foto = d.data.imageUrl
+         ? `<img src="${d.data.imageUrl}" alt="" style="width:50px;height:50px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
+         : `<div style="width:50px;height:50px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla}</div>`;
         return `
-            <div style="background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
-         d.width
-        }px;height:${d.height}px;border-radius:50px">
-               <img src=" ${
-                d.data.imageUrl
-               }" style="position:absolute;margin-top:5px;margin-left:${5}px;border-radius:100px;width:60px;height:60px;" />
-               <div style="position:absolute;top:-15px;width:${
-                d.width
-               }px;text-align:center;color:#fafafa;">
-                     <div style="margin:0 auto;background-color:${color};display:inline-block;padding:8px;padding-bottom:0px;border-radius:5px"> ${
-         d.data.id
-        }</div>
-              </div>
-
-              <div style="color:#fafafa;font-size:${
-               d.depth < 2 ? 16 : 12
-              }px;font-weight:bold;margin-left:70px;margin-right:20px;margin-top:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
-         d.depth < 2
-          ? d.data.name
-          : (d.data.name || "").trim().split(/\s+/g)[0]
-        } </div>
-              <div style="color:#fafafa;margin-left:70px;margin-right:20px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"> ${
-               d.depth < 2 ? d.data.positionName : d.data.area
-              } </div>
-           </div>
-  `;
+            <div style="position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:50px;background:#fff;border:1px dashed #b9c2cf;display:flex;align-items:center;gap:10px;padding:0 16px 0 8px;box-sizing:border-box">
+               ${foto}
+               <div style="min-width:0">
+                 <div style="color:#0b0b0b;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+                 <div style="color:#52514e;font-size:10px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.data.positionName || ""}</div>
+               </div>
+            </div>`;
        })
     },
 
@@ -586,28 +547,29 @@
         }
        })
        .nodeContent(function (d, i, arr, state) {
-        const color = "#FFFFFF";
+        const cor = d.data._cor, tinta = textoSobre(cor), nome = d.data.name || "";
+        if (d.data._ehUnidade) {
+         return `
+            <div style="font-family:'Inter',sans-serif;position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:10px;border:1px solid #E4E2E9;background:#fff;overflow:hidden;display:flex;flex-direction:column">
+               <div style="background:${cor};color:${tinta};padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:.7px;display:flex;justify-content:space-between">
+                 <span>${d.data._rotuloTipo}</span><span style="opacity:.75">#${d.data.id}</span>
+               </div>
+               <div style="flex:1;display:flex;align-items:center;padding:8px 14px">
+                 <div style="font-size:${nome.length > 44 ? 11.5 : 13.5}px;color:#0b0b0b;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${nome}</div>
+               </div>
+            </div>`;
+        }
+        const foto = d.data.imageUrl
+         ? `<img src="${d.data.imageUrl}" alt="" style="width:36px;height:36px;border-radius:100px;object-fit:cover;flex:0 0 auto" />`
+         : `<div style="width:36px;height:36px;border-radius:100px;background:#e2e8f0;color:#52514e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto">${d.data._sigla}</div>`;
         return `
-            <div style="font-family: 'Inter', sans-serif;background-color:${color}; position:absolute;margin-top:-1px; margin-left:-1px;width:${
-         d.width
-        }px;height:${d.height}px;border-radius:10px;border: 1px solid #E4E2E9">
-               <div style="background-color:${color};position:absolute;margin-top:-25px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
-               <img src=" ${
-                d.data.imageUrl
-               }" style="position:absolute;margin-top:-20px;margin-left:${20}px;border-radius:100px;width:40px;height:40px;" />
-
-              <div style="color:#08011E;position:absolute;right:20px;top:17px;font-size:10px;"><i class="fas fa-ellipsis-h"></i></div>
-
-              <div style="font-size:15px;color:#08011E;margin-left:20px;margin-top:32px"> ${
-               d.data.name
-              } </div>
-              <div style="color:#716E7B;margin-left:20px;margin-top:3px;font-size:10px;"> ${
-               d.data.positionName
-              } </div>
-
-
-           </div>
-  `;
+            <div style="font-family:'Inter',sans-serif;position:absolute;margin-top:-1px;margin-left:-1px;width:${d.width}px;height:${d.height}px;border-radius:10px;border:1px dashed #cbd5e1;background:#fff;padding:12px 14px;box-sizing:border-box;display:flex;gap:10px;align-items:center">
+               ${foto}
+               <div style="min-width:0">
+                 <div style="font-size:13px;color:#0b0b0b;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+                 <div style="color:#52514e;font-size:10px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${d.data.positionName || ""}</div>
+               </div>
+            </div>`;
        })
     },
 
@@ -630,12 +592,112 @@
 
    // As colunas do misc/data.csv mapeadas para os nomes usados pelos
    // exemplos do repositório (que leem sample-data/org.csv).
+   // NADA aqui é classificação inventada. A versão anterior agrupava
+   // "ASSESSOR" dentro de COORDENADORIA e "GUARDA/CORPO/CHEFE" dentro de
+   // GABINETE, e ordenava os tipos por um ranking que eu havia arbitrado —
+   // um card saía com etiqueta COORDENADORIA e nome ASSESSOR EXECUTIVO.
+   // Agora as duas informações saem do próprio arquivo:
+   //   • a etiqueta é a primeira palavra do rótulo, sem agrupar nada;
+   //   • a cor vem da profundidade real do nó na árvore.
+   // A única distinção categórica que resta é pessoa x unidade, que é real:
+   // quem tem nome preenchido é colaborador.
+
+   // Rampa ordinal azul 700→250, validada com scripts/validate_palette.js
+   // (--ordinal, luz): matiz única, luminosidade monótona, degraus visíveis,
+   // ponta clara acima de 2:1 contra a superfície.
+   const RAMPA_NIVEL = ["#0d366b", "#184f95", "#256abf", "#3987e5", "#86b6ef"];
+   const COR_PESSOA = "#94a3b8";
+
+   // Profundidade de cada id, contada a partir da raiz.
+   var nivelPorId = new Map();
+
+   function calcularNiveis() {
+    nivelPorId = new Map();
+    const paiDe = new Map(currentData.map((r) => [String(r.id), String(r.parentId || "").trim()]));
+    for (const id of paiDe.keys()) {
+     let nivel = 0;
+     let atual = paiDe.get(id);
+     const visto = new Set([id]);
+     while (atual && paiDe.has(atual) && !visto.has(atual)) {
+      visto.add(atual);
+      nivel++;
+      atual = paiDe.get(atual);
+     }
+     nivelPorId.set(id, nivel);
+    }
+   }
+
+   function nivelDe(row) {
+    return nivelPorId.get(String(row.id)) || 0;
+   }
+
+   function corDoNivel(nivel) {
+    return RAMPA_NIVEL[Math.min(nivel, RAMPA_NIVEL.length - 1)];
+   }
+
+   // A etiqueta é a primeira palavra do rótulo, como está escrita no arquivo.
+   function etiquetaDe(row) {
+    const rotulo = String(row.position || "").trim();
+    if (!rotulo) return "";
+    const primeira = rotulo.split(/[\s,/-]+/)[0].toUpperCase();
+    return primeira.length > 2 ? primeira : rotulo.toUpperCase().slice(0, 14);
+   }
+
+   function textoSobre(cor) {
+    const m = /^#([0-9a-f]{6})$/i.exec(cor || "");
+    if (!m) return "#0b0b0b";
+    const n = parseInt(m[1], 16);
+    const canal = (c) => {
+     const v = c / 255;
+     return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    const lum =
+     0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255);
+    return 1.05 / (lum + 0.05) >= 4.5 ? "#ffffff" : "#0b0b0b";
+   }
+
+   function iniciaisDe(row) {
+    const partes = `${row.name || ""} ${row.lastName || ""}`.trim().split(/\s+/).filter(Boolean);
+    if (!partes.length) return "";
+    return (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+   }
+
+   function ehUnidade(row) {
+    return !`${row.name || ""} ${row.lastName || ""}`.trim();
+   }
+
+   function tituloDe(row) {
+    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
+    return pessoa || row.position || `#${row.id}`;
+   }
+
+   // Em caixa de unidade o department_name é sempre a secretaria de cima, que a
+   // própria árvore já mostra — e truncado ("SECRETARIA MUNICIPAL DE ASSISTÊ…")
+   // não informa nada. O subtítulo fica reservado para cargo de pessoa.
    function toChartRow(row) {
+    // Numa caixa de unidade o rótulo é o próprio `position`; usá-lo como
+    // título evita o card sair com o nome em branco.
+    const unidade = ehUnidade(row);
     return Object.assign({}, row, {
+     // A lib decide o que abrir a partir desta flag. toChartRow cria objetos
+     // novos a cada render, então ela precisa ser reaplicada aqui — senão o
+     // que estava aberto volta a fechar.
+     _expanded: expandidos.has(String(row.id)),
      id: row.id,
      parentId: row.parentId,
-     name: `${row.name || ""} ${row.lastName || ""}`.trim(),
-     positionName: row.position || "",
+     name: tituloDe(row),
+     positionName: unidade ? "" : row.position || "",
+     _nivel: nivelDe(row),
+     _cor: unidade ? corDoNivel(nivelDe(row)) : COR_PESSOA,
+     _tipo: unidade ? etiquetaDe(row) : "pessoa",
+     // Quando o nome da unidade JÁ é o tipo ("COORDENADORIA"), repetir a
+     // etiqueta em cima do nome é ruído.
+     _rotuloTipo:
+      unidade && etiquetaDe(row) !== String(row.position || "").trim().toUpperCase()
+       ? etiquetaDe(row)
+       : "",
+     _sigla: iniciaisDe(row),
+     _ehUnidade: unidade,
      imageUrl: row.image || "",
      area: row.department_name || "",
      office: row.location_state || row.department_name || "",
@@ -665,9 +727,12 @@
      const nodeId = idMatch[1];
      const row = currentData.find((r) => String(r.id) === String(nodeId));
      if (!row) return;
+     // "sem e-mail" em toda caixa de secretaria é ruído: unidade não tem
+     // e-mail pessoal. O selo só aparece quando existe endereço de verdade.
+     if (!row.email) return;
      const overlay = document.createElement("div");
      overlay.className = "orgchart-email-overlay";
-     overlay.textContent = row.email ? `✉ ${row.email}` : "✉ sem e-mail";
+     overlay.textContent = `✉ ${row.email}`;
      overlay.style.position = "absolute";
      overlay.style.right = "6px";
      overlay.style.bottom = "6px";
@@ -748,14 +813,35 @@
     }, 550);
    }
 
+   // A legenda explica o que a cor significa: profundidade na árvore. Antes ela
+   // listava tipos que eu havia agrupado por conta própria.
+   function montarLegenda() {
+    const profundidades = [...new Set(currentData.map((r) => nivelDe(r)))].sort((a, b) => a - b);
+    const maior = Math.min(profundidades[profundidades.length - 1] || 0, RAMPA_NIVEL.length - 1);
+    const itens = [];
+    for (let n = 0; n <= maior; n++) {
+     itens.push(
+      `<span class="legenda__item"><i style="background:${corDoNivel(n)}"></i>${
+       n === 0 ? "Nível 1 (raiz)" : "Nível " + (n + 1)
+      }${n === RAMPA_NIVEL.length - 1 && maior === n ? "+" : ""}</span>`
+     );
+    }
+    itens.push(
+     `<span class="legenda__item"><i style="background:${COR_PESSOA};border-radius:100px"></i>Colaborador</span>`
+    );
+    document.getElementById("legenda").innerHTML = itens.join("");
+   }
+
    function afterRender() {
     requestAnimationFrame(() => {
      attachEmailOverlay();
      applySelectionStyle();
+     montarLegenda();
     });
    }
 
    function renderDesign() {
+    calcularNiveis();
     const design = activeDesign();
     const container = document.querySelector(".chart-container");
     container.innerHTML = "";
@@ -774,16 +860,20 @@
      .pagingStep((d) => Number.MAX_SAFE_INTEGER)
      .onNodeClick((d) => {
       selectNode(d.data.id);
+      salvarVisual();
       setStatus(`Selecionado: ${nodeLabel(d.data.id)}`);
      })
      .onExpandOrCollapse(() => {
       requestAnimationFrame(() => {
        fitLegivel();
        afterRender();
+       capturarExpandidos();
+       salvarVisual();
       });
      });
 
     design.apply(chart);
+    chart.layout(layoutAtual);
     chart.render(); fitLegivel();
     setTimeout(afterRender, 50);
     setTimeout(afterRender, 250);
@@ -794,31 +884,156 @@
    // Sem isto, adicionar/editar/remover é perdido no primeiro F5: a página
    // sempre recarregava o CSV do servidor e jogava fora o trabalho.
 
-   const CHAVE_SALVA = "organograma:dados";
+   const CHAVE_VISUAL = "organograma:visual";
 
-   function salvarLocal() {
+   // Tema, layout, o que está aberto e o card selecionado. Sem guardar isto,
+   // escolher um tema, expandir a árvore e trocar o layout era tudo perdido no
+   // primeiro F5, mesmo com os dados intactos.
+   var expandidos = new Set();
+   var layoutAtual = "top";
+   const LAYOUTS = ["top", "right", "bottom", "left"];
+
+   // Abre só a linha da raiz até o nó e fecha o resto. Sem isto, criar alguém
+   // no fundo da árvore expandia todos os ancestrais de uma vez e cada um
+   // despejava os próprios filhos: 1 pessoa criada, dezenas de cards na tela.
+   function focarCaminho(id) {
+    const caminho = new Set();
+    let atual = currentData.find((r) => String(r.id) === String(id));
+    while (atual && !caminho.has(String(atual.id))) {
+     caminho.add(String(atual.id));
+     atual = currentData.find((r) => String(r.id) === String(atual.parentId));
+    }
+    expandidos = caminho;
+   }
+
+   // A lib usa _expanded para abrir os ANCESTRAIS do nó marcado — não os
+   // filhos dele. Então o que precisa ser guardado é a lista de nós visíveis:
+   // cada um puxa o próprio caminho de volta ao ser restaurado.
+   function capturarExpandidos() {
+    if (!chart) return;
+    const state = chart.getChartState();
+    if (!state.root) return;
+    // allNodes traz a árvore inteira, inclusive o que está recolhido — salvar
+    // aquilo reabria tudo no F5. Visível é só quem tem o caminho aberto até a
+    // raiz, e a lib marca isso movendo os filhos entre .children e ._children.
+    const visiveis = new Set();
+    const percorrer = (no) => {
+     visiveis.add(String(no.data.id));
+     if (no.children) no.children.forEach(percorrer);
+    };
+    percorrer(state.root);
+    expandidos = visiveis;
+   }
+
+   function salvarVisual() {
     try {
-     localStorage.setItem(CHAVE_SALVA, JSON.stringify(currentData));
+     localStorage.setItem(
+      CHAVE_VISUAL,
+      JSON.stringify({
+       tema: currentDesign,
+       layout: layoutAtual,
+       expandidos: [...expandidos],
+       selecionado: selectedNodeId
+      })
+     );
+    } catch (erro) {}
+   }
+
+   function aplicarVisualSalvo() {
+    let visual = null;
+    try {
+     visual = JSON.parse(localStorage.getItem(CHAVE_VISUAL) || "null");
+    } catch (erro) {}
+    if (!visual) return;
+    if (designs.some((d) => d.id === visual.tema)) currentDesign = visual.tema;
+    if (LAYOUTS.includes(visual.layout)) layoutAtual = visual.layout;
+    if (Array.isArray(visual.expandidos)) expandidos = new Set(visual.expandidos.map(String));
+    if (visual.selecionado) selectedNodeId = String(visual.selecionado);
+   }
+
+   var versaoServidor = null;
+   var gravando = false;
+   var gravarDeNovo = false;
+
+   // Os dados ficam no servidor, num arquivo JSON. O que continua no navegador
+   // é só a preferência visual de cada pessoa (tema, layout, o que está aberto),
+   // que não faz sentido impor aos outros.
+   async function salvarNoServidor() {
+    if (gravando) {
+     gravarDeNovo = true;
+     return;
+    }
+    gravando = true;
+    try {
+     const resposta = await fetch("api/organograma", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ versao: versaoServidor, linhas: currentData })
+     });
+     const corpo = await resposta.json();
+
+     if (resposta.status === 409) {
+      // Alguém salvou enquanto esta aba estava aberta. Trocar para a versão
+      // do servidor é menos ruim do que apagar o trabalho da outra pessoa.
+      versaoServidor = corpo.versao;
+      currentData = corpo.linhas;
+      selectNode(null);
+      renderDesign();
+      afterRender();
+      marcarAlterado(true);
+      setStatus(
+       `${corpo.erro}. A tela foi atualizada com a versão do servidor — refaça sua alteração.`,
+       true
+      );
+      return;
+     }
+
+     if (!resposta.ok) {
+      setStatus(
+       `Não foi possível salvar no servidor: ${corpo.erro || resposta.status}. Exporte o CSV para não perder o trabalho.`,
+       true
+      );
+      return;
+     }
+
+     versaoServidor = corpo.versao;
      marcarAlterado(true);
-     return true;
     } catch (erro) {
-     marcarAlterado(false);
      setStatus(
-      "As alterações não puderam ser salvas neste navegador — exporte o CSV para não perdê-las",
+      "Sem conexão com o servidor — a alteração não foi salva. Exporte o CSV para não perder o trabalho.",
       true
      );
-     return false;
+    } finally {
+     gravando = false;
+     if (gravarDeNovo) {
+      gravarDeNovo = false;
+      salvarNoServidor();
+     }
     }
    }
 
-   function lerLocal() {
+   async function carregarDoServidor() {
+    const resposta = await fetch("api/organograma", { cache: "no-store" });
+    if (!resposta.ok) throw new Error("servidor indisponível");
+    const corpo = await resposta.json();
+    if (!corpo.existe) return null;
+    versaoServidor = corpo.versao;
+    return corpo.linhas;
+   }
+
+   async function descartarLocal() {
+    if (
+     !confirm(
+      "Descartar as alterações salvas no servidor e voltar ao organograma original?\n\nIsto afeta todo mundo que abrir esta página."
+     )
+    )
+     return;
     try {
-     const cru = localStorage.getItem(CHAVE_SALVA);
-     if (!cru) return null;
-     const linhas = JSON.parse(cru);
-     return Array.isArray(linhas) && linhas.length ? linhas : null;
+     const resposta = await fetch("api/organograma", { method: "DELETE" });
+     if (!resposta.ok) throw new Error();
+     location.reload();
     } catch (erro) {
-     return null;
+     setStatus("Não foi possível descartar as alterações no servidor", true);
     }
    }
 
@@ -826,42 +1041,33 @@
     document.getElementById("btn-descartar").hidden = !alterado;
    }
 
-   function descartarLocal() {
-    if (
-     !confirm(
-      "Descartar todas as alterações salvas neste navegador e recarregar o organograma original?"
-     )
-    )
-     return;
-    try {
-     localStorage.removeItem(CHAVE_SALVA);
-    } catch (erro) {}
-    location.reload();
-   }
-
    function iniciar(linhas, mensagem) {
     currentData = linhas;
+    aplicarVisualSalvo();
+    if (selectedNodeId && !nodeExists(selectedNodeId)) selectedNodeId = null;
     buildDesignMenu();
     renderDesign();
     afterRender();
     setStatus(mensagem);
    }
 
-   const salvos = lerLocal();
-   if (salvos) {
-    marcarAlterado(true);
+   (async () => {
+    try {
+     const salvas = await carregarDoServidor();
+     if (salvas) {
+      marcarAlterado(true);
+      iniciar(salvas, `${salvas.length} pessoas • carregado do servidor`);
+      return;
+     }
+    } catch (erro) {
+     setStatus("Servidor fora do ar — abrindo o organograma original, sem salvar", true);
+    }
+    const originais = await d3.csv("misc/data.csv");
     iniciar(
-     salvos,
-     `${salvos.length} pessoas • alterações restauradas deste navegador`
+     originais,
+     `Pronto • ${originais.length} pessoas • clique em um card para selecioná-lo`
     );
-   } else {
-    d3.csv("misc/data.csv").then((dataFlattened) => {
-     iniciar(
-      dataFlattened,
-      `Pronto • ${dataFlattened.length} pessoas • clique em um card para selecioná-lo`
-     );
-    });
-   }
+   })();
 
    // ------------------------- ações da toolbar -------------------------
 
@@ -892,7 +1098,7 @@
       ? selectedNodeId
       : null
     );
-    salvarLocal();
+    salvarNoServidor();
     renderDesign();
     fitLegivel();
     afterRender();
@@ -950,15 +1156,19 @@
    function nodeLabel(id) {
     const row = currentData.find((r) => String(r.id) === String(id));
     if (!row) return `#${id}`;
-    const fullName = `${row.name || ""} ${row.lastName || ""}`.trim() || `(sem nome)`;
-    return `#${id} • ${fullName}${row.position ? " — " + row.position : ""}`;
+    const titulo = tituloDe(row);
+    const complemento = ehUnidade(row) ? "" : row.position ? " — " + row.position : "";
+    return `#${id} • ${titulo}${complemento}`;
    }
 
+   // O piso de zoom vale para as ações automáticas (criar, editar, carregar),
+   // onde encolher tudo deixaria o texto ilegível. Aqui o usuário pediu para ver
+   // a árvore inteira, então o fit é o da lib mesmo, sem piso.
    function chartFit() {
     if (!chart) return setStatus("Carregue dados antes de ajustar à tela", true);
-    fitLegivel();
+    chart.fit();
     afterRender();
-    setStatus("Visão ajustada à tela");
+    setStatus(`Visão ajustada à tela (${chart.getChartState().allNodes.length} cards visíveis)`);
    }
 
    function toggleFullscreen() {
@@ -975,9 +1185,12 @@
 
    function cycleLayout() {
     if (!chart) return setStatus("Carregue dados antes de trocar layout", true);
-    const layouts = ["right", "bottom", "left", "top"];
-    chart.layout(layouts[index++ % layouts.length]).render(); fitLegivel();
-    setStatus(`Layout: ${layouts[(index - 1 + layouts.length) % layouts.length]}`);
+    layoutAtual = LAYOUTS[(LAYOUTS.indexOf(layoutAtual) + 1) % LAYOUTS.length];
+    chart.layout(layoutAtual).render();
+    fitLegivel();
+    afterRender();
+    salvarVisual();
+    setStatus(`Layout: ${layoutAtual}`);
    }
 
    function safeCall(method, label) {
@@ -986,6 +1199,8 @@
      chart[method]();
      fitLegivel();
      afterRender();
+     capturarExpandidos();
+     salvarVisual();
      setStatus(label);
     } else {
      setStatus(`${label} indisponível nesta versão`, true);
@@ -1025,11 +1240,22 @@
      image: ""
     });
     selectNode(id);
-    salvarLocal();
+    salvarNoServidor();
+    focarCaminho(id);
     renderDesign();
-    chart.setCentered(id).render(); fitLegivel(id);
+    fitLegivel(id);
     afterRender();
-    setStatus(`Adicionado sob ${nodeLabel(parentId)}: ${name} — ${position}`);
+    salvarVisual();
+    // Mostrar alguém no fundo da árvore obriga a abrir os pais, e abrir um pai
+    // revela os irmãos. Sem dizer isso, parece que a app criou várias pessoas.
+    const irmaos = currentData.filter(
+     (r) => String(r.parentId) === String(parentId) && String(r.id) !== String(id)
+    ).length;
+    setStatus(
+     irmaos
+      ? `1 pessoa adicionada sob ${nodeLabel(parentId)}: ${name} — ${position}. Os outros ${irmaos} cards ao lado são a equipe que já existia. Total: ${currentData.length} pessoas.`
+      : `1 pessoa adicionada sob ${nodeLabel(parentId)}: ${name} — ${position}. Total: ${currentData.length} pessoas.`
+    );
    }
 
    // ----------------------------- editor de card -----------------------------
@@ -1100,28 +1326,96 @@
     atualizarPreview("");
    }
 
-   // A foto vira data URI para viajar junto no CSV/JSON exportado. Sem o
-   // redimensionamento, uma foto de celular sozinha passaria de 1 MB no arquivo.
-   function fotoParaDataUri(file, aoTerminar) {
-    const reader = new FileReader();
-    reader.onload = () => {
-     const img = new Image();
-     img.onload = () => {
-      const lado = 128;
-      const canvas = document.createElement("canvas");
-      canvas.width = lado;
-      canvas.height = lado;
-      const corte = Math.min(img.width, img.height);
-      canvas
-       .getContext("2d")
-       .drawImage(img, (img.width - corte) / 2, (img.height - corte) / 2, corte, corte, 0, 0, lado, lado);
-      aoTerminar(canvas.toDataURL("image/jpeg", 0.85));
+   const LADO_FOTO = 256;
+
+   // Recorta no quadrado central e reduz. Uma foto de celular tem ~4 MB; sem
+   // isto, 330 colaboradores encheriam o disco e deixariam a página lenta.
+   function prepararFoto(file) {
+    return new Promise((resolve, reject) => {
+     const reader = new FileReader();
+     reader.onerror = () => reject(new Error("não foi possível ler o arquivo"));
+     reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("arquivo não é uma imagem válida"));
+      img.onload = () => {
+       const canvas = document.createElement("canvas");
+       canvas.width = LADO_FOTO;
+       canvas.height = LADO_FOTO;
+       const corte = Math.min(img.width, img.height);
+       canvas
+        .getContext("2d")
+        .drawImage(img, (img.width - corte) / 2, (img.height - corte) / 2, corte, corte, 0, 0, LADO_FOTO, LADO_FOTO);
+       canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("falha ao converter"))), "image/jpeg", 0.82);
+      };
+      img.src = reader.result;
      };
-     img.onerror = () => setStatus("Não foi possível ler essa imagem", true);
-     img.src = reader.result;
-    };
-    reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
-    reader.readAsDataURL(file);
+     reader.readAsDataURL(file);
+    });
+   }
+
+   async function enviarFoto(id, file) {
+    const blob = await prepararFoto(file);
+    const resposta = await fetch(`api/fotos/${encodeURIComponent(id)}`, {
+     method: "PUT",
+     headers: { "Content-Type": "image/jpeg" },
+     body: blob
+    });
+    if (!resposta.ok) throw new Error((await resposta.json()).erro || "falha no envio");
+    const corpo = await resposta.json();
+    // O sufixo força o navegador a buscar de novo depois de trocar a foto.
+    return `${corpo.caminho}?v=${Date.now()}`;
+   }
+
+   const semAcento = (t) =>
+    (t || "")
+     .normalize("NFD")
+     .replace(/[̀-ͯ]/g, "")
+     .toLowerCase()
+     .replace(/[^a-z0-9]+/g, " ")
+     .trim();
+
+   // Casa "maria.silva.jpg" com a pessoa: primeiro pelo id, depois pelo login/
+   // e-mail e por fim pelo nome completo, para o lote não exigir renomear tudo.
+   function acharPessoaPorArquivo(nomeArquivo) {
+    const base = nomeArquivo.replace(/\.[^.]+$/, "");
+    const chave = semAcento(base);
+    let achou = currentData.find((r) => String(r.id) === base.trim());
+    if (achou) return achou;
+    achou = currentData.find((r) => r.email && semAcento(String(r.email).split("@")[0]) === chave);
+    if (achou) return achou;
+    return currentData.find(
+     (r) => semAcento(`${r.name || ""} ${r.lastName || ""}`) === chave && chave
+    );
+   }
+
+   async function enviarFotosEmLote(arquivos) {
+    const total = arquivos.length;
+    const semDono = [];
+    let enviadas = 0;
+    for (let i = 0; i < total; i++) {
+     const arquivo = arquivos[i];
+     const pessoa = acharPessoaPorArquivo(arquivo.name);
+     if (!pessoa) {
+      semDono.push(arquivo.name);
+      continue;
+     }
+     setStatus(`Enviando fotos… ${i + 1} de ${total}`);
+     try {
+      pessoa.image = await enviarFoto(pessoa.id, arquivo);
+      enviadas++;
+     } catch (erro) {
+      semDono.push(`${arquivo.name} (${erro.message})`);
+     }
+    }
+    if (enviadas) {
+     await salvarNoServidor();
+     renderDesign();
+     afterRender();
+    }
+    const sobra = semDono.length
+     ? ` • ${semDono.length} sem correspondência: ${semDono.slice(0, 3).join(", ")}${semDono.length > 3 ? "…" : ""}`
+     : "";
+    setStatus(`${enviadas} de ${total} fotos aplicadas${sobra}`, !enviadas);
    }
 
    function salvarEditor() {
@@ -1134,13 +1428,11 @@
      valores[campo] = document.getElementById("ed-" + campo).value.trim();
     });
     const erro = document.getElementById("ed-erro");
-    if (!valores.name) {
-     erro.textContent = "O nome é obrigatório";
+    // Caixa de unidade ("GABINETE DO PREFEITO") não tem nome de pessoa, e uma
+    // pessoa pode estar sem cargo definido: basta um dos dois para identificar.
+    if (!valores.name && !valores.position) {
+     erro.textContent = "Preencha o nome ou o cargo/unidade";
      return document.getElementById("ed-name").focus();
-    }
-    if (!valores.position) {
-     erro.textContent = "O cargo é obrigatório";
-     return document.getElementById("ed-position").focus();
     }
 
     const select = document.getElementById("ed-parentId");
@@ -1153,11 +1445,12 @@
 
     fecharEditor();
     selectNode(editandoId);
-    salvarLocal();
+    salvarNoServidor();
+    if (mudouChefe) focarCaminho(row.id);
     renderDesign();
-    chart.setCentered(row.id).render();
     fitLegivel(row.id);
     afterRender();
+    salvarVisual();
     setStatus(
      mudouChefe
       ? `Salvo: ${nodeLabel(row.id)} agora responde a ${nodeLabel(novoChefe)}`
@@ -1213,7 +1506,7 @@
     pushUndo();
     currentData = currentData.filter((row) => !idsToRemove.has(String(row.id)));
     selectNode(null);
-    salvarLocal();
+    salvarNoServidor();
     renderDesign();
     fitLegivel();
     afterRender();
@@ -1286,48 +1579,100 @@
    }
 
    function parseInput(text, name) {
+    // O Bloco de Notas e o Excel gravam um BOM no início do arquivo. Sem tirar,
+    // a primeira coluna vira o texto FEFF+id e nenhuma linha tem id.
+    const limpo = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     const ext = (name || "").toLowerCase();
     if (ext.endsWith(".json")) {
-     const json = JSON.parse(text);
+     const json = JSON.parse(limpo);
      const rows = Array.isArray(json) ? json : Array.isArray(json.nodes) ? json.nodes : null;
      if (!rows) throw new Error("JSON precisa ser uma lista de nós ou ter a chave 'nodes'");
      return rows;
     }
-    return d3.csvParse(text);
+    // Excel em português salva com ";". Decide pelo separador que mais aparece
+    // no cabeçalho, senão o arquivo inteiro vira uma coluna só.
+    const cabecalho = limpo.slice(0, limpo.indexOf("\n") + 1 || limpo.length);
+    const conta = (c) => cabecalho.split(c).length - 1;
+    if (conta(";") > conta(",")) return d3.dsvFormat(";").parse(limpo);
+    if (conta("\t") > conta(",")) return d3.dsvFormat("\t").parse(limpo);
+    return d3.csvParse(limpo);
+   }
+
+   // O CSV e as fotos entram no mesmo gesto. Aqui a lista é separada: os dados
+   // são carregados primeiro (as fotos precisam saber a quem pertencem) e só
+   // depois as imagens são casadas com as pessoas.
+   async function carregarArquivos(lista) {
+    const arquivos = [...(lista || [])];
+    if (!arquivos.length) return;
+    const ehImagem = (f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name);
+    const imagens = arquivos.filter(ehImagem);
+    const dados = arquivos.filter((f) => !ehImagem(f));
+
+    if (dados.length > 1) {
+     return setStatus(
+      `Selecione um único CSV/JSON (encontrei ${dados.length}: ${dados.map((f) => f.name).join(", ")})`,
+      true
+     );
+    }
+    if (dados.length) {
+     const carregou = await loadDataFile(dados[0]);
+     if (!carregou) return;
+    } else if (!currentData.length) {
+     return setStatus("Envie o CSV junto com as fotos", true);
+    }
+    if (imagens.length) {
+     await enviarFotosEmLote(imagens);
+     return;
+    }
+    await salvarNoServidor();
    }
 
    function loadDataFile(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-     try {
-      const rows = parseInput(event.target.result, file.name);
-      if (!Array.isArray(rows) || rows.length === 0) {
-       throw new Error("O arquivo não contém dados válidos");
+    return new Promise((resolve) => {
+     const reader = new FileReader();
+     reader.onload = (event) => {
+      try {
+       const rows = parseInput(event.target.result, file.name);
+       if (!Array.isArray(rows) || rows.length === 0) {
+        throw new Error("O arquivo não contém dados válidos");
+       }
+       // Um organograma institucional é feito de unidades (secretaria,
+       // gabinete, coordenadoria) além de pessoas, e unidade não tem nome nem
+       // sobrenome — só o rótulo em `position`. Exigir nome de pessoa
+       // descartava essas linhas, inclusive a raiz, e o arquivo inteiro era
+       // recusado por "não tem nó raiz".
+       const validRows = rows.filter((row) => {
+        const id = String(row.id || "").trim();
+        const rotulo =
+         String(row.name || "").trim() ||
+         String(row.lastName || "").trim() ||
+         String(row.position || "").trim();
+        return id && rotulo;
+       });
+       if (!validRows.length) {
+        throw new Error("O arquivo precisa ter, em cada linha, um id e um nome ou cargo");
+       }
+       validateRows(validRows);
+       currentData = validRows;
+       selectNode(null);
+       undoStack.length = 0;
+       expandidos = new Set();
+       renderDesign();
+       fitLegivel();
+       afterRender();
+       setStatus(`${validRows.length} registros carregados de ${file.name}`);
+       resolve(true);
+      } catch (error) {
+       setStatus(error.message || "Não foi possível ler o arquivo", true);
+       resolve(false);
       }
-      const validRows = rows.filter((row) => {
-       const id = String(row.id || "").trim();
-       const name = String(row.name || "").trim();
-       return id && (name || String(row.lastName || "").trim());
-      });
-      if (!validRows.length) {
-       throw new Error("O arquivo precisa conter pelo menos id e nome/lastName");
-      }
-      validateRows(validRows);
-      currentData = validRows;
-      selectNode(null);
-      undoStack.length = 0;
-      salvarLocal();
-      renderDesign();
-      fitLegivel();
-      afterRender();
-      setStatus(`${validRows.length} registros carregados de ${file.name}`);
-     } catch (error) {
-      setStatus(error.message || "Não foi possível ler o arquivo", true);
-     }
-    };
-    reader.onerror = () => setStatus("Não foi possível ler o arquivo", true);
-    reader.readAsText(file, "UTF-8");
+     };
+     reader.onerror = () => {
+      setStatus("Não foi possível ler o arquivo", true);
+      resolve(false);
+     };
+     reader.readAsText(file, "UTF-8");
+    });
    }
 
    const CSV_COLUMNS = ["id", "parentId", "name", "lastName", "position", "email", "department_name", "location_state", "image"];
@@ -1378,15 +1723,19 @@
     }
    }
 
-   document.getElementById("ed-arquivo").addEventListener("change", (event) => {
+   document.getElementById("ed-arquivo").addEventListener("change", async (event) => {
     const file = event.target.files[0];
     event.target.value = "";
-    if (!file) return;
-    fotoParaDataUri(file, (dataUri) => {
-     document.getElementById("ed-image").value = dataUri;
-     atualizarPreview(dataUri);
-     setStatus(`Foto carregada (${Math.round(dataUri.length / 1024)} KB)`);
-    });
+    if (!file || !editandoId) return;
+    setStatus("Enviando foto…");
+    try {
+     const caminho = await enviarFoto(editandoId, file);
+     document.getElementById("ed-image").value = caminho;
+     atualizarPreview(caminho);
+     setStatus("Foto enviada — clique em Salvar para aplicar");
+    } catch (erro) {
+     setStatus(`Não foi possível enviar a foto: ${erro.message}`, true);
+    }
    });
 
    document.getElementById("ed-image").addEventListener("input", (event) => {
@@ -1421,16 +1770,17 @@
     abrirEditor(id);
    });
 
-   document.getElementById("csv-input").addEventListener("change", (event) => {
-    loadDataFile(event.target.files[0]);
+   document.getElementById("csv-input").addEventListener("change", async (event) => {
+    const arquivos = [...event.target.files];
     event.target.value = "";
+    await carregarArquivos(arquivos);
    });
 
    document.getElementById("theme-select").addEventListener("change", (event) => {
     currentDesign = event.target.value;
-    index = 0;
     renderDesign();
     afterRender();
+    salvarVisual();
     setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
    });
 
@@ -1464,7 +1814,7 @@
     event.preventDefault();
     dragDepth = 0;
     dropOverlay.classList.remove("active");
-    loadDataFile(event.dataTransfer.files[0]);
+    carregarArquivos(event.dataTransfer.files);
    });
   </script>
 

@@ -1,28 +1,29 @@
-# Dockerfile - bumbeishvili/org-chart demo
-# Imagem leve baseada em Nginx para servir a página estática (tree.html)
-FROM nginx:1.27-alpine
+# Organograma — página estática + API que grava os dados num arquivo JSON.
+# Node puro, sem dependências: não há package.json nem npm install.
+FROM node:22-alpine
 
-# Metadados
 LABEL maintainer="organograma" \
-   description="Demo do bumbeishvili/org-chart servido via Nginx" \
+   description="Organograma editável, com persistência em arquivo JSON" \
    source="https://github.com/bumbeishvili/org-chart"
 
-# Remove a página default do Nginx
-RUN rm -rf /usr/share/nginx/html/*
+WORKDIR /app
 
-# Copia a árvore do projeto (HTML + JS + assets)
-COPY tree.html /usr/share/nginx/html/index.html
-COPY index.js /usr/share/nginx/html/
-COPY src/ /usr/share/nginx/html/src/
-COPY build/ /usr/share/nginx/html/build/
-COPY misc/ /usr/share/nginx/html/misc/
+COPY server.js ./
+COPY tree.html ./
+COPY index.js ./
+COPY src/ ./src/
+COPY build/ ./build/
+COPY misc/ ./misc/
 
-# Configuração customizada do Nginx (SPA friendly, cache de assets)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Volume: é aqui que organograma.json sobrevive a rebuilds do container.
+ENV DADOS_DIR=/dados
+RUN mkdir -p /dados && chown -R node:node /dados /app
+VOLUME ["/dados"]
 
+USER node
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+   CMD wget --quiet --tries=1 --spider http://localhost/api/saude || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]

@@ -16,8 +16,11 @@ services:
       - "8080:80"
     networks:
       - net
+    volumes:
+      # Os dados editados na tela vivem aqui, fora da imagem.
+      - orgchart-dados:/dados
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/healthz"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/api/saude"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -32,3 +35,6 @@ services:
       # Protegido pelo login do Authentik (qualquer usuário autenticado,
       # sem restrição de grupo — ver blueprints/hub-login-base.yaml)
       - "traefik.http.routers.orgchart.middlewares=authentik-auth@docker"
+
+volumes:
+  orgchart-dados:
