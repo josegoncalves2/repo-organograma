@@ -158,16 +158,92 @@
    </div>
 
    <div class="toolbar__group">
-    <button class="btn btn--primary" onclick="addSampleNode()" title="Adicionar nó">
+    <button class="btn btn--primary" onclick="addSampleNode()" title="Adicionar um subordinado ao card selecionado">
      <i class="fas fa-user-plus"></i> Add Node
+    </button>
+    <button
+     class="btn"
+     onclick="abrirEditor()"
+     title="Editar o card selecionado (ou dê duplo clique no card)"
+    >
+     <i class="fas fa-pen"></i> Editar
     </button>
     <button
      class="btn btn--danger"
      onclick="removeSampleNode()"
-     title="Remover o último nó adicionado (ou uma folha da árvore)"
+     title="Remover o card selecionado e todos os subordinados dele"
     >
      <i class="fas fa-user-minus"></i> Remove
     </button>
+   </div>
+  </div>
+
+  <div class="modal" id="editor" hidden>
+   <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="editor-titulo">
+    <div class="modal__head">
+     <h2 id="editor-titulo">Editar colaborador</h2>
+     <button class="modal__x" onclick="fecharEditor()" title="Fechar" aria-label="Fechar">
+      <i class="fas fa-times"></i>
+     </button>
+    </div>
+
+    <div class="modal__body">
+     <div class="campo-foto">
+      <img id="ed-preview" alt="Foto do colaborador" />
+      <div class="campo-foto__acoes">
+       <label class="btn btn--primary" style="cursor:pointer">
+        <i class="fas fa-upload"></i> Enviar foto
+        <input type="file" id="ed-arquivo" accept="image/*" hidden />
+       </label>
+       <button class="btn" type="button" onclick="limparFoto()">
+        <i class="fas fa-trash"></i> Remover foto
+       </button>
+      </div>
+     </div>
+
+     <label class="campo campo--largo">
+      <span>URL da foto</span>
+      <input type="text" id="ed-image" placeholder="https://… (ou use Enviar foto)" />
+     </label>
+
+     <label class="campo">
+      <span>Nome <b>*</b></span>
+      <input type="text" id="ed-name" />
+     </label>
+
+     <label class="campo">
+      <span>Sobrenome</span>
+      <input type="text" id="ed-lastName" />
+     </label>
+
+     <label class="campo campo--largo">
+      <span>Cargo <b>*</b></span>
+      <input type="text" id="ed-position" />
+     </label>
+
+     <label class="campo">
+      <span>E-mail</span>
+      <input type="text" id="ed-email" />
+     </label>
+
+     <label class="campo">
+      <span>Departamento</span>
+      <input type="text" id="ed-department_name" />
+     </label>
+
+     <label class="campo campo--largo">
+      <span>Responde a</span>
+      <select id="ed-parentId"></select>
+     </label>
+    </div>
+
+    <div class="modal__pe">
+     <span class="modal__erro" id="ed-erro"></span>
+     <button class="btn" onclick="fecharEditor()">Cancelar</button>
+     <button class="btn btn--primary" onclick="salvarEditor()">
+      <i class="fas fa-check"></i> Salvar
+     </button>
+    </div>
    </div>
   </div>
 
@@ -192,36 +268,23 @@
   <script src="build/d3.v7.min.js"></script>
   <script src="build/d3-org-chart.js"></script>
   <script src="build/d3-flextree.js"></script>
-  <script src="build/vendor/pieChart.js"></script>
 
   <script>
    // ---------------------------------------------------------------------
-   // Os 7 designs abaixo são portes literais dos exemplos publicados em
-   // github.com/bumbeishvili/org-chart ("Jump To Examples"):
-   //   Default        -> stackblitz.com/edit/web-platform-sgsxzp
-   //   Sky            -> stackblitz.com/edit/web-platform-jyncb9
-   //   Circles        -> stackblitz.com/edit/web-platform-lwyild
-   //   Oval           -> stackblitz.com/edit/web-platform-uhd3q7
-   //   Clean          -> stackblitz.com/edit/web-platform-3gwnsg
-   //   Futuristic     -> stackblitz.com/edit/web-platform-o5t1ha
-   //   Prev version   -> stackblitz.com/edit/web-platform-thplyq
-   // Únicas adaptações: (1) os exemplos leem sample-data/org.csv, aqui as
-   // colunas do misc/data.csv são mapeadas para os nomes que eles esperam
-   // (imageUrl / positionName / area / office); (2) `neightbourMargin` era
-   // o nome (com typo) do setter na v2 da lib — na v3 local é
-   // `neighbourMargin`; (3) svgHeight vem do container da página; (4) em
-   // Sky, Circles e Oval, nome/cargo ganharam nowrap + ellipsis: os exemplos
-   // usam cargos curtos ("CTO"), os cargos deste CSV quebram em 2 linhas e
-   // ou vazam para fora da faixa/pill (28px e 70px de altura fixa), ou
-   // empurram o rodapé Manages/Oversees contra a borda do card (Sky),
-   // deixando cards do mesmo design com espaçamentos diferentes.
+   // Os 5 designs abaixo são portes dos exemplos de github.com/bumbeishvili/
+   // org-chart, adaptados para as colunas de misc/data.csv.
+   //
+   // Os designs "Futuristic" e "Prev version" foram removidos: ambos exibiam
+   // dados que não existem no CSV — barras de progresso e percentuais
+   // gerados por Math.random(), largura/altura de card aleatórias e um texto
+   // institucional fixo em inglês. Num organograma de RH isso é dado falso
+   // apresentado como se fosse informação da pessoa.
    // ---------------------------------------------------------------------
 
    var index = 0;
    var chart;
    var currentDesign = "default";
    var currentData = [];
-   var addedIds = [];
    var selectedNodeId = null;
    var undoStack = [];
 
@@ -538,257 +601,6 @@
        })
     },
 
-    {
-     id: "futuristic",
-     label: "Futuristic",
-     background: "#000c0e",
-     prepare: (rows) => {
-      rows.forEach((d) => {
-       const val = Math.round((d.name || "").length / 2);
-       d.progress = [...new Array(val)].map((d) => Math.random() * 25 + 5);
-      });
-      return rows;
-     },
-     apply: (c) =>
-      c
-       .nodeHeight((d) => 170)
-       .nodeWidth((d) => {
-        if (d.depth == 0) return 500;
-        return 330;
-       })
-       .childrenMargin((d) => 90)
-       .compactMarginBetween((d) => 65)
-       .compactMarginPair((d) => 100)
-       .neighbourMargin((a, b) => 50)
-       .siblingsMargin((d) => 100)
-       .buttonContent(({ node, state }) => {
-        return `<div style="color:#2CAAE5;border-radius:5px;padding:3px;font-size:10px;margin:auto auto;background-color:#040910;border: 1px solid #2CAAE5"> <span style="font-size:9px">${
-         node.children
-          ? `<i class="fas fa-angle-up"></i>`
-          : `<i class="fas fa-angle-down"></i>`
-        }</span> ${node.data._directSubordinates}  </div>`;
-       })
-       .linkUpdate(function (d, i, arr) {
-        d3.select(this)
-         .attr("stroke", (d) =>
-          d.data._upToTheRootHighlighted ? "#14760D" : "#2CAAE5"
-         )
-         .attr("stroke-width", (d) =>
-          d.data._upToTheRootHighlighted ? 15 : 1
-         );
-
-        if (d.data._upToTheRootHighlighted) {
-         d3.select(this).raise();
-        }
-       })
-       .nodeContent(function (d, i, arr, state) {
-        const svgStr = `<svg width=150 height=75  style="background-color:none"> <path d="M 0,15 L15,0 L135,0 L150,15 L150,60 L135,75 L15,75 L0,60" fill="#2599DD" stroke="#2599DD"/> </svg>`;
-        return `
-                          <div class="left-top" style="position:absolute;left:-10px;top:-10px">  ${svgStr}</div>
-                          <div class="right-top" style="position:absolute;right:-10px;top:-10px">  ${svgStr}</div>
-                          <div class="right-bottom" style="position:absolute;right:-10px;bottom:-14px">  ${svgStr}</div>
-                          <div class="left-bottom" style="position:absolute;left:-10px;bottom:-14px">  ${svgStr}</div>
-                          <div style="font-family: 'Inter'; background-color:#040910;sans-serif; position:absolute;margin-top:-1px; margin-left:-1px;width:${
-                           d.width
-                          }px;height:${
-         d.height
-        }px;border-radius:0px;border: 2px solid #2CAAE5">
-
-                             <div class="pie-chart-wrapper" style="margin-left:-10px;margin-top:5px;width:320px;height:300px"></div>
-
-                            <div style="color:#2CAAE5;position:absolute;right:15px;top:-20px;">
-                              <div style="font-size:15px;color:#2CAAE5;margin-top:32px"> ${
-                               d.data.name
-                              } </div>
-                              <div style="font-size:10px;"> ${
-                               d.data.positionName || ""
-                              } </div>
-                              <div style="font-size:10px;"> ${
-                               d.data.id || ""
-                              } </div>
-                              ${
-                               d.depth == 0
-                                ? `                              <br/>
-                              <div style="max-width:200px;font-size:10px;">
-                                A corporate history of Ian is a chronological account of a business or other co-operative organization he founded.  <br><br>Usually it is produced in written format but it can also be done in audio or audiovisually
-                              </div>`
-                                : ""
-                              }
-
-                            </div>
-
-                            <div style="position:absolute;left:-5px;bottom:10px;">
-                              <div style="font-size:10px;color:#2CAAE5;margin-left:20px;margin-top:32px"> Progress </div>
-                              <div style="color:#2CAAE5;margin-left:20px;margin-top:3px;font-size:10px;">
-                                <svg width=150 height=30> ${(
-                                 d.data.progress || []
-                                )
-                                 .map((h, i) => {
-                                  return `<rect  width=10 x="${
-                                   i * 12
-                                  }" height=${h}  y=${30 - h} fill="#B41425"/>`;
-                                 })
-                                 .join("")}  </svg>
-                                </div>
-                            </div>
-                          </div>
-
-  `;
-       })
-       .nodeUpdate(function (d, i, arr) {
-        d3.select(this)
-         .select(".node-rect")
-         .attr("stroke", (d) =>
-          d.data._highlighted || d.data._upToTheRootHighlighted
-           ? "#14760D"
-           : "none"
-         )
-         .attr(
-          "stroke-width",
-          d.data._highlighted || d.data._upToTheRootHighlighted ? 40 : 1
-         );
-
-        const pieChartWrapperNode = d3
-         .select(this)
-         .select(".pie-chart-wrapper")
-         .node();
-        // Os nós de paginação ("Show next N nodes") não usam o nodeContent
-        // deste design, então não têm o wrapper do gráfico de pizza.
-        if (!pieChartWrapperNode) return;
-        const val = ((d.data.name || "").length * 5) % 100; // Dummy calc
-        // General pie chart invokation code
-        new PieChart()
-         .data([
-          { key: "plan", color: "#6EC2EA", value: val },
-          { key: "exec", color: "#0D5AAF", value: 100 - val }
-         ])
-         .container(pieChartWrapperNode)
-         .svgHeight(200)
-         .svgWidth(320)
-         .marginTop(40)
-         .image(d.data.imageUrl)
-         .backCircleColor("#1F72A7")
-         .defaultFont("Inter")
-         .render();
-       }),
-     after: () => {
-      const url = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4QMaAyMA1SdmlAAAAVRJREFUeNrt26FOw2AUhuFTElzrETNLMNPtJVRVVFbtlnYXKGQFqldANo3EoLDUITazzCxBTNBk53lv4M+XJ/ndKZ52L9uft9eP+Oeqbtgs8O7+cbWO36/PiIgmwd4ojsdIU9n2l7XzNBYZNj9Eos6oTRbcdMAZAwxYgAVYgAVYgAUYsAALsAALsAALMGABFmABFmABFmABBizAAqwFgZ/fv+slHl7q3aobNpn2proujIgo276ep/HgixZgARZgARZgAQYswAIswAIswAIswIAFWIAFWIAFWIABC7AAC7AAC7D+AHZdeN97XRf6ogVYgAVYgAVYgAELsAALsAALsAADFmABFmABFmABFmDAAizAAizAAqxrYNeF973XdaEvWoAFWIAFWIAFGLAAC7AAC7AACzBgARZgARZgARZgAQYswAIswAKsW0p1m1S2/WXtPI1Fhs0nxU1Jj2yxm2sAAAAASUVORK5CYII=`;
-      const replaced = url.replace(/(\r\n|\n|\r)/gm, "");
-      d3.select(".svg-chart-container")
-       .style(
-        "background",
-        'radial-gradient(circle at center, #04192B 0, #000B0E 100%) url("https://raw.githubusercontent.com/bumbeishvili/coronavirus.davidb.dev/master/glow.png")'
-       )
-       .style(
-        "background-image",
-        `url(${replaced}), radial-gradient(circle at center, #04192B 0, #000B0E 100%)`
-       );
-     }
-    },
-
-    {
-     id: "previous",
-     label: "Prev version design",
-     background: "white",
-     prepare: (rows) =>
-      rows.map((d) => {
-       const width = Math.round(Math.random() * 50 + 300);
-       const height = Math.round(Math.random() * 20 + 130);
-       const cornerShape = ["ORIGINAL", "ROUNDED", "CIRCLE"][
-        Math.round(Math.random() * 2)
-       ];
-       const nodeImageWidth = 100;
-       const nodeImageHeight = 100;
-       const centerTopDistance = 0;
-       const centerLeftDistance = 0;
-       const expanded = false;
-
-       const titleMarginLeft = nodeImageWidth / 2 + 20 + centerLeftDistance;
-       const contentMarginLeft = width / 2 + 25;
-       return {
-        nodeId: d.id,
-        parentNodeId: d.parentId,
-        width: width,
-        height: height,
-        borderWidth: 1,
-        borderRadius: 5,
-        borderColor: { red: 15, green: 140, blue: 121, alpha: 1 },
-        backgroundColor: { red: 51, green: 182, blue: 208, alpha: 1 },
-        nodeImage: {
-         url: d.imageUrl,
-         width: nodeImageWidth,
-         height: nodeImageHeight,
-         centerTopDistance: centerTopDistance,
-         centerLeftDistance: centerLeftDistance,
-         cornerShape: cornerShape,
-         shadow: false,
-         borderWidth: 0,
-         borderColor: { red: 19, green: 123, blue: 128, alpha: 1 }
-        },
-        nodeIcon: { icon: "https://to.ly/1yZnX", size: 30 },
-        template: `<div>
-                  <div style="margin-left:${titleMarginLeft}px;
-                              margin-top:10px;
-                              font-size:15px;
-                              font-weight:bold;
-                         ">${d.name} </div>
-                 <div style="margin-left:${titleMarginLeft}px;
-                              margin-top:3px;
-                              font-size:13px;
-                         ">${d.positionName} </div>
-
-                 <div style="margin-left:${titleMarginLeft}px;
-                              margin-top:3px;
-                              font-size:12px;
-                         ">${d.unit?.value || "Unit"}</div>
-
-                 <div style="margin-left:${contentMarginLeft}px;
-                             margin-top:15px;
-                             font-size:12px;
-                             position:absolute;
-                             bottom:5px;
-                            ">
-                      <div>${d.office}</div>
-                      <div style="font-size:12px;margin-top:5px">${d.area}</div>
-                 </div>
-              </div>`,
-        connectorLineColor: { red: 220, green: 189, blue: 207, alpha: 1 },
-        connectorLineWidth: 5,
-        dashArray: "",
-        expanded: expanded
-       };
-      }),
-     apply: (c) =>
-      c
-       .nodeWidth((n) => 250)
-       .nodeHeight((n) => 120)
-       .compactMarginBetween((d) => 50)
-       .siblingsMargin((d) => 100)
-       .nodeContent((d) => {
-        return `
-              <div class="outer-wrapper" style="padding-left:70px;padding-top:0px;background-color:none;width:${
-               d.width - 70
-              }px;height:${d.height}px">
-                <img style="border-radius:5px;margin-left:-100px;margin-top:-20px" width=60 height=60 src="${
-                 d.data.nodeImage.url
-                }"/>
-
-                <div  style="margin-left:-70px;margin-top:-40px;border-radius:5px;color:white;background-color:#2DA7C6;width:${
-                 d.width
-                }px;  height:${d.height}px">
-                   <div style="margin-left:-30px;padding-top:2px">${
-                    d.data.template
-                   }</div>
-
-                </div>
-
-                <div style="color:white;margin-top:-37px;margin-left:-65px"> ${
-                 d.data._totalSubordinates
-                } Subordinates <br/> ${d.data._directSubordinates} Direct</div>
-              </div>
-              `;
-       })
-    }
    ];
 
    function buildDesignMenu() {
@@ -829,8 +641,8 @@
 
    function refreshChart() {
     if (!chart) return;
-    chart.svgHeight(chartHeight()).render().fit();
-    setTimeout(attachEmailOverlay, 100);
+    chart.svgHeight(chartHeight()).render(); fitLegivel();
+    setTimeout(afterRender, 100);
    }
 
    function attachEmailOverlay() {
@@ -865,6 +677,74 @@
     });
    }
 
+   // Desenha o contorno no card selecionado. Sem isso não há como saber em
+   // quem as ações da toolbar vão agir.
+   function applySelectionStyle() {
+    document.querySelectorAll(".chart-container g.node").forEach((node) => {
+     const inner = node.querySelector(".node-foreign-object-div");
+     if (!inner) return;
+     const id = nodeIdFromElement(node);
+     const isSelected = id !== null && String(id) === String(selectedNodeId);
+     inner.style.outline = isSelected ? "3px solid #1565C0" : "";
+     inner.style.outlineOffset = isSelected ? "2px" : "";
+     inner.style.borderRadius = isSelected ? "12px" : "";
+    });
+   }
+
+   function nodeIdFromElement(node) {
+    const datum = d3.select(node).datum();
+    if (datum && datum.data && datum.data.id !== undefined) return datum.data.id;
+    const match = (node.textContent || "").match(/#\s*([\w-]+)/);
+    return match ? match[1] : null;
+   }
+
+   function selectNode(id) {
+    selectedNodeId = id === null || id === undefined ? null : String(id);
+    applySelectionStyle();
+   }
+
+   // Abaixo deste zoom o nome e o cargo no card viram borrão. Quando a árvore
+   // é larga demais para caber inteira, é melhor cortar e deixar o usuário
+   // navegar do que mostrar tudo ilegível.
+   const ZOOM_MINIMO = 0.5;
+
+   function fitLegivel(ancorarEm) {
+    if (!chart) return;
+    // O fit da lib encaixa a árvore inteira na tela. Com muitos irmãos isso
+    // encolhe o card até o nome sumir, então ele só vale enquanto o resultado
+    // continuar legível; abaixo disso enquadramos um nó e o usuário navega.
+    chart.fit();
+    setTimeout(() => {
+     // `svg` e `zoomBehavior` entram no state depois do constructor, então não
+     // ganham getter na instância — só dá para lê-los pelo state.
+     const state = chart.getChartState();
+     if (!state.svg || !state.zoomBehavior || !state.allNodes) return;
+     if (state.lastTransform && state.lastTransform.k >= ZOOM_MINIMO) return;
+
+     const alvo =
+      state.allNodes.find((n) => String(n.data.id) === String(ancorarEm)) ||
+      state.allNodes.find((n) => String(n.data.id) === String(rootId()));
+     if (!alvo) return;
+
+     // Depois do fit o center-group está zerado, então as coordenadas do nó
+     // já estão no mesmo espaço em que o zoom é aplicado.
+     const k = ZOOM_MINIMO;
+     const x = state.svgWidth / 2 - alvo.x * k;
+     const y = 60 - alvo.y * k;
+     state.svg
+      .transition()
+      .duration(400)
+      .call(state.zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
+    }, 550);
+   }
+
+   function afterRender() {
+    requestAnimationFrame(() => {
+     attachEmailOverlay();
+     applySelectionStyle();
+    });
+   }
+
    function renderDesign() {
     const design = activeDesign();
     const container = document.querySelector(".chart-container");
@@ -878,17 +758,25 @@
      .container(".chart-container")
      .svgHeight(chartHeight())
      .data(rows)
-     .pagingStep((d) => 5)
-     .minPagingVisibleNodes((d) => 3)
+     // Um organograma mostra a equipe inteira. Esconder subordinados atrás de
+     // um "Show next N nodes" faz o gestor parecer ter menos gente do que tem.
+     .minPagingVisibleNodes((d) => Number.MAX_SAFE_INTEGER)
+     .pagingStep((d) => Number.MAX_SAFE_INTEGER)
      .onNodeClick((d) => {
-      selectedNodeId = String(d.id);
-      setStatus(`Selecionado: ${nodeLabel(d.id)}`);
+      selectNode(d.data.id);
+      setStatus(`Selecionado: ${nodeLabel(d.data.id)}`);
+     })
+     .onExpandOrCollapse(() => {
+      requestAnimationFrame(() => {
+       fitLegivel();
+       afterRender();
+      });
      });
 
     design.apply(chart);
-    chart.render().fit();
-    setTimeout(attachEmailOverlay, 50);
-    setTimeout(attachEmailOverlay, 250);
+    chart.render(); fitLegivel();
+    setTimeout(afterRender, 50);
+    setTimeout(afterRender, 250);
     if (design.after) design.after(chart);
    }
 
@@ -896,7 +784,8 @@
     currentData = dataFlattened;
     buildDesignMenu();
     renderDesign();
-    setStatus(`Pronto • ${currentData.length} funcionários carregados`);
+    afterRender();
+    setStatus(`Pronto • ${currentData.length} pessoas • clique em um card para selecioná-lo`);
    });
 
    // ------------------------- ações da toolbar -------------------------
@@ -923,66 +812,62 @@
     const previous = JSON.parse(undoStack.pop());
     if (!Array.isArray(previous)) return setStatus("Histórico corrompido", true);
     currentData = previous;
-    selectedNodeId = currentData.some((row) => String(row.id) === String(selectedNodeId))
-     ? selectedNodeId
-     : null;
-    addedIds = [];
+    selectNode(
+     currentData.some((row) => String(row.id) === String(selectedNodeId))
+      ? selectedNodeId
+      : null
+    );
     renderDesign();
-    chart.fit();
-    setStatus("Última alteração desfeita");
+    fitLegivel();
+    afterRender();
+    setStatus(`Última alteração desfeita (${currentData.length} pessoas)`);
    }
 
-   function focusId() {
-    const root = rootId();
-    const parents = new Set(
-     currentData.map((row) => String(row.parentId || "")).filter(Boolean)
-    );
-    const manager = currentData.find(
-     (row) => parents.has(String(row.id)) && String(row.id) !== root
-    );
-    if (manager) return String(manager.id);
-    const other = currentData.find((row) => String(row.id) !== root);
-    return other ? String(other.id) : root;
-   }
-
+   // Só devolve um nó se o usuário realmente clicou em um. Sem palpite:
+   // toda ação da toolbar age no que está selecionado ou em nada.
    function getSelectedNodeId() {
     if (selectedNodeId && nodeExists(selectedNodeId)) return selectedNodeId;
-    const fallback = focusId();
-    if (fallback) {
-     selectedNodeId = fallback;
-     return fallback;
-    }
+    selectedNodeId = null;
     return null;
    }
 
-   function centerFocusNode() {
+   function requireSelection(acao) {
     const id = getSelectedNodeId();
-    if (!id) return setStatus("Clique em um nó para selecioná-lo antes de centralizar", true);
-    chart.setCentered(id).render().fit();
-    requestAnimationFrame(attachEmailOverlay);
+    if (!id) {
+     setStatus(`Clique em um card para selecioná-lo antes de ${acao}`, true);
+     return null;
+    }
+    return id;
+   }
+
+   function centerFocusNode() {
+    const id = requireSelection("centralizar");
+    if (!id) return;
+    chart.setCentered(id).render(); fitLegivel(id);
+    afterRender();
     setStatus(`Centralizado em ${nodeLabel(id)}`);
    }
 
    function highlightFocusNode() {
-    const id = getSelectedNodeId();
-    if (!id) return setStatus("Clique em um nó para selecioná-lo antes de destacar", true);
-    chart.clearHighlighting().setHighlighted(id).render().fit();
-    requestAnimationFrame(attachEmailOverlay);
+    const id = requireSelection("destacar");
+    if (!id) return;
+    chart.clearHighlighting().setHighlighted(id).render(); fitLegivel(id);
+    afterRender();
     setStatus(`Nó destacado: ${nodeLabel(id)}`);
    }
 
    function highlightPathToRoot() {
-    const id = getSelectedNodeId();
-    if (!id) return setStatus("Clique em um nó antes de destacar o caminho", true);
-    chart.clearHighlighting().setUpToTheRootHighlighted(id).render().fit();
-    requestAnimationFrame(attachEmailOverlay);
+    const id = requireSelection("destacar o caminho");
+    if (!id) return;
+    chart.clearHighlighting().setUpToTheRootHighlighted(id).render(); fitLegivel(id);
+    afterRender();
     setStatus(`Caminho até a raiz destacado: ${nodeLabel(id)}`);
    }
 
    function clearHighlighting() {
     if (!chart) return setStatus("Carregue dados antes de limpar destaques", true);
-    chart.clearHighlighting().render().fit();
-    requestAnimationFrame(attachEmailOverlay);
+    chart.clearHighlighting().render(); fitLegivel();
+    afterRender();
     setStatus("Destaques removidos");
    }
 
@@ -995,8 +880,8 @@
 
    function chartFit() {
     if (!chart) return setStatus("Carregue dados antes de ajustar à tela", true);
-    chart.fit();
-    requestAnimationFrame(attachEmailOverlay);
+    fitLegivel();
+    afterRender();
     setStatus("Visão ajustada à tela");
    }
 
@@ -1015,7 +900,7 @@
    function cycleLayout() {
     if (!chart) return setStatus("Carregue dados antes de trocar layout", true);
     const layouts = ["right", "bottom", "left", "top"];
-    chart.layout(layouts[index++ % layouts.length]).render().fit();
+    chart.layout(layouts[index++ % layouts.length]).render(); fitLegivel();
     setStatus(`Layout: ${layouts[(index - 1 + layouts.length) % layouts.length]}`);
    }
 
@@ -1023,8 +908,8 @@
     if (!chart) return setStatus(`Carregue dados antes de ${label.toLowerCase()}`, true);
     if (typeof chart[method] === "function") {
      chart[method]();
-     chart.fit();
-     requestAnimationFrame(attachEmailOverlay);
+     fitLegivel();
+     afterRender();
      setStatus(label);
     } else {
      setStatus(`${label} indisponível nesta versão`, true);
@@ -1044,11 +929,14 @@
    }
 
    function addSampleNode() {
-    const parentId = getSelectedNodeId() || rootId();
-    if (!parentId) return setStatus("Carregue dados antes de adicionar um nó", true);
-    const id = "novo-" + Date.now();
-    const position = prompt("Cargo do novo colaborador?", "Analista") || "Colaborador";
-    const name = prompt("Nome do novo colaborador?", "Novo Colaborador") || "Novo";
+    const parentId = requireSelection("adicionar um subordinado");
+    if (!parentId) return;
+    const name = (prompt(`Nome do novo subordinado de ${nodeLabel(parentId)}:`) || "").trim();
+    if (!name) return setStatus("Nada adicionado: o nome é obrigatório", true);
+    const position = (prompt(`Cargo de ${name}:`, "Analista") || "").trim();
+    if (!position) return setStatus("Nada adicionado: o cargo é obrigatório", true);
+    const parentRow = currentData.find((r) => String(r.id) === String(parentId));
+    const id = proximoId();
     pushUndo();
     currentData.push({
      id,
@@ -1057,42 +945,68 @@
      lastName: "",
      position,
      email: "",
-     department_name: nodeExists(parentId) ? (currentData.find((r) => String(r.id) === String(parentId))?.department_name || "Equipe") : "Equipe",
+     department_name: (parentRow && parentRow.department_name) || "Equipe",
      image: ""
     });
-    addedIds.push(id);
-    selectedNodeId = id;
+    selectNode(id);
     renderDesign();
-    chart.fit();
-    setStatus(`Nó adicionado: ${nodeLabel(id)}`);
+    chart.setCentered(id).render(); fitLegivel(id);
+    afterRender();
+    setStatus(`Adicionado sob ${nodeLabel(parentId)}: ${name} — ${position}`);
    }
 
-   function removeSampleNode() {
-    if (!currentData.length) return setStatus("Não há nós para remover", true);
-    const targetId = getSelectedNodeId();
-    if (!targetId || !nodeExists(targetId)) return setStatus("Clique em um nó antes de remover", true);
-    const idsToRemove = new Set([String(targetId)]);
+   // Continua a numeração do CSV em vez de um id sintético: quem adiciona uma
+   // pessoa aqui espera encontrá-la no CSV exportado, com um id igual aos outros.
+   function proximoId() {
+    const numericos = currentData
+     .map((row) => Number(row.id))
+     .filter((n) => Number.isFinite(n));
+    return String(numericos.length ? Math.max(...numericos) + 1 : 1);
+   }
+
+   function descendantsOf(targetId) {
+    const ids = new Set([String(targetId)]);
     let changed = true;
     while (changed) {
      changed = false;
      for (const row of currentData) {
-      if (idsToRemove.has(String(row.parentId)) && !idsToRemove.has(String(row.id))) {
-       idsToRemove.add(String(row.id));
+      if (ids.has(String(row.parentId)) && !ids.has(String(row.id))) {
+       ids.add(String(row.id));
        changed = true;
       }
      }
     }
-    const label = nodeLabel(targetId);
-    if (!confirm(`Remover ${label} e ${idsToRemove.size - 1} subordinado(s)?`)) {
-     return;
+    return ids;
+   }
+
+   function removeSampleNode() {
+    if (!currentData.length) return setStatus("Não há nós para remover", true);
+    const targetId = requireSelection("remover");
+    if (!targetId) return;
+
+    // Apagar a raiz esvazia o organograma inteiro e deixa a tela em branco.
+    if (String(targetId) === String(rootId())) {
+     return setStatus(
+      `${nodeLabel(targetId)} é a raiz do organograma e não pode ser removida`,
+      true
+     );
     }
+
+    const idsToRemove = descendantsOf(targetId);
+    const label = nodeLabel(targetId);
+    const subordinados = idsToRemove.size - 1;
+    const aviso = subordinados
+     ? `Remover ${label}?\n\nIsto também remove ${subordinados} subordinado(s) abaixo dele.`
+     : `Remover ${label}?`;
+    if (!confirm(aviso)) return setStatus("Remoção cancelada");
+
     pushUndo();
     currentData = currentData.filter((row) => !idsToRemove.has(String(row.id)));
-    addedIds = addedIds.filter((aid) => !idsToRemove.has(String(aid)));
-    selectedNodeId = null;
+    selectNode(null);
     renderDesign();
-    chart.fit();
-    setStatus(`Removido: ${label} (${idsToRemove.size} nó(s))`);
+    fitLegivel();
+    afterRender();
+    setStatus(`Removido: ${label} (${idsToRemove.size} pessoa(s))`);
    }
 
    function downloadPdf() {
@@ -1177,17 +1091,24 @@
     reader.onload = (event) => {
      try {
       const rows = parseInput(event.target.result, file.name);
-      const validRows = rows.filter((row) => row.id && (row.name || row.lastName));
+      if (!Array.isArray(rows) || rows.length === 0) {
+       throw new Error("O arquivo não contém dados válidos");
+      }
+      const validRows = rows.filter((row) => {
+       const id = String(row.id || "").trim();
+       const name = String(row.name || "").trim();
+       return id && (name || String(row.lastName || "").trim());
+      });
       if (!validRows.length) {
-       throw new Error("O arquivo precisa conter pelo menos id e nome");
+       throw new Error("O arquivo precisa conter pelo menos id e nome/lastName");
       }
       validateRows(validRows);
       currentData = validRows;
-      addedIds = [];
-      selectedNodeId = null;
+      selectNode(null);
       undoStack.length = 0;
       renderDesign();
-      chart.fit();
+      fitLegivel();
+      afterRender();
       setStatus(`${validRows.length} registros carregados de ${file.name}`);
      } catch (error) {
       setStatus(error.message || "Não foi possível ler o arquivo", true);
@@ -1254,6 +1175,7 @@
     currentDesign = event.target.value;
     index = 0;
     renderDesign();
+    afterRender();
     setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
    });
 
@@ -1261,7 +1183,9 @@
    window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-     if (chart) chart.svgHeight(chartHeight()).render().fit();
+     if (!chart) return;
+     chart.svgHeight(chartHeight()).render();
+     fitLegivel();
     }, 200);
    });
 

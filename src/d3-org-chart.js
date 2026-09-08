@@ -1079,6 +1079,7 @@ export class OrgChart {
             data: (d) => [d]
         })
             .style('overflow', 'visible')
+            .style('pointer-events', 'auto')
 
         // Add foreign object
         fo.patternify({
