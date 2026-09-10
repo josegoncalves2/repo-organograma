@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/bumbeishvili/org-chart/master/assets/preview.png" alt="Organograma Preview" width="700"/>
+  <img src="README-preview.png" alt="Organograma Preview" width="700"/>
 </p>
 
 ---
