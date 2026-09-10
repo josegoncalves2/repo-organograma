@@ -233,7 +233,7 @@
      <div id="cores-lista"></div>
     </div>
 
-    <div class="modal__acoes">
+    <div class="modal__pe">
      <button class="btn" onclick="restaurarTodasAsCores()">
       <i class="fas fa-rotate-left"></i> Restaurar tudo
      </button>
@@ -1482,6 +1482,89 @@
      select.appendChild(option);
     });
     select.value = currentDesign;
+   }
+
+   // ------------------------- editor de cores (UI) -------------------------
+
+   function abrirCores() {
+    montarListaDeCores();
+    document.getElementById("cores").hidden = false;
+   }
+
+   function fecharCores() {
+    document.getElementById("cores").hidden = true;
+   }
+
+   function montarListaDeCores() {
+    const lista = document.getElementById("cores-lista");
+    lista.innerHTML = "";
+    Object.keys(TIPOS)
+     .sort((a, b) => TIPOS[a].rank - TIPOS[b].rank || a.localeCompare(b, "pt-BR"))
+     .forEach((chave) => {
+      const linha = document.createElement("div");
+      linha.className = "cores__linha";
+
+      const nome = document.createElement("span");
+      nome.className = "cores__nome";
+      nome.textContent = TIPOS[chave].rotulo;
+      nome.style.background = TIPOS[chave].selo;
+      nome.style.color = TIPOS[chave].seloTexto;
+      linha.appendChild(nome);
+
+      CAMPOS_COR.forEach((campo) => {
+       const entrada = document.createElement("input");
+       entrada.type = "color";
+       entrada.value = TIPOS[chave][campo];
+       entrada.title = `${TIPOS[chave].rotulo} — ${campo}`;
+       entrada.addEventListener("input", () => trocarCor(chave, campo, entrada.value));
+       linha.appendChild(entrada);
+      });
+
+      const voltar = document.createElement("button");
+      voltar.className = "btn cores__voltar";
+      voltar.title = `Restaurar as cores de ${TIPOS[chave].rotulo}`;
+      voltar.innerHTML = '<i class="fas fa-rotate-left"></i>';
+      voltar.addEventListener("click", () => restaurarTipo(chave));
+      linha.appendChild(voltar);
+
+      lista.appendChild(linha);
+     });
+   }
+
+   // TIPOS[chave] e o MESMO objeto que os cards guardam em _tipo, entao mutar
+   // no lugar ja atualiza quem tem a referencia; o render redesenha.
+   function trocarCor(chave, campo, valor) {
+    TIPOS[chave][campo] = String(valor).toUpperCase();
+    gravarCores();
+    repintar();
+   }
+
+   function restaurarTipo(chave) {
+    CAMPOS_COR.forEach((campo) => (TIPOS[chave][campo] = CORES_PADRAO[chave][campo]));
+    gravarCores();
+    montarListaDeCores();
+    repintar();
+   }
+
+   function restaurarTodasAsCores() {
+    Object.keys(TIPOS).forEach((chave) =>
+     CAMPOS_COR.forEach((campo) => (TIPOS[chave][campo] = CORES_PADRAO[chave][campo]))
+    );
+    gravarCores();
+    montarListaDeCores();
+    repintar();
+    setStatus("Cores de fabrica restauradas");
+   }
+
+   // Redesenha sem perder o que estava aberto nem a selecao.
+   let repintarTimer;
+   function repintar() {
+    clearTimeout(repintarTimer);
+    repintarTimer = setTimeout(() => {
+     capturarExpandidos();
+     renderDesign();
+     afterRender();
+    }, 120);
    }
 
    function activeDesign() {
@@ -2954,6 +3037,14 @@
 
    document.getElementById("editor").addEventListener("click", (event) => {
     if (event.target.id === "editor") fecharEditor();
+   });
+
+   document.getElementById("cores").addEventListener("click", (event) => {
+    if (event.target.id === "cores") fecharCores();
+   });
+
+   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !document.getElementById("cores").hidden) fecharCores();
    });
 
    document.addEventListener("keydown", (event) => {

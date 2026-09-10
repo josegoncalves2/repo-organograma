@@ -560,3 +560,86 @@ body {
    max-width: 240px;
    min-width: 150px;
 }
+
+/* ===== Editor de cores dos tipos ===== */
+
+.modal__box--cores {
+   max-width: 720px;
+}
+
+/* .modal__body e um grid de 2 colunas, pensado para os campos do editor de
+   colaborador. Aqui cada linha ja e uma grade propria, entao precisa de
+   coluna unica — senao o cabecalho cai ao lado do texto de ajuda. */
+.modal__box--cores .modal__body {
+   grid-template-columns: 1fr;
+   gap: 0;
+}
+
+.cores__ajuda {
+   margin: 0 0 14px;
+   font-size: 12px;
+   color: #64748b;
+   line-height: 1.45;
+}
+
+.cores__cabecalho,
+.cores__linha {
+   display: grid;
+   grid-template-columns: 1fr repeat(5, 44px) 36px;
+   align-items: center;
+   gap: 8px;
+}
+
+.cores__cabecalho {
+   font-size: 10px;
+   font-weight: 700;
+   text-transform: uppercase;
+   letter-spacing: 0.04em;
+   color: #94a3b8;
+   padding: 0 4px 6px;
+   border-bottom: 1px solid #e2e8f0;
+}
+
+.cores__cabecalho span:not(:first-child) {
+   text-align: center;
+   font-size: 9px;
+}
+
+.cores__linha {
+   padding: 5px 4px;
+   border-bottom: 1px solid #f1f5f9;
+}
+
+.cores__nome {
+   font-size: 11px;
+   font-weight: 700;
+   letter-spacing: 0.03em;
+   padding: 4px 9px;
+   border-radius: 5px;
+   justify-self: start;
+   white-space: nowrap;
+}
+
+/* O seletor nativo vem com moldura e recuo proprios em cada navegador; sem
+   zerar, as 5 amostras de cada linha saem desalinhadas entre si. */
+.cores__linha input[type="color"] {
+   width: 44px;
+   height: 28px;
+   padding: 0;
+   border: 1px solid #cbd5e1;
+   border-radius: 6px;
+   background: none;
+   cursor: pointer;
+}
+
+.cores__linha input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.cores__linha input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+.cores__voltar {
+   padding: 5px 7px;
+   color: #94a3b8;
+}
+
+.cores__voltar:hover {
+   color: #334155;
+}
