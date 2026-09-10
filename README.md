@@ -1,9 +1,12 @@
-# Organograma — bumbeishvili/org-chart em Docker (WSL)
+# 🏛️ Organograma Municipal — Prefeitura de Olímpia
 
-Demo do projeto [bumbeishvili/org-chart](https://github.com/bumbeishvili/org-chart)
-servida por Nginx em um container Docker rodando no WSL (Ubuntu).
+> **Visualização institucional completa** da Prefeitura Municipal de Olímpia, com 15 Secretarias, Gabinete do Prefeito, Controladoria Geral, Divisões, Setores e Colaboradores — tudo renderizado diretamente no navegador via Docker.
 
-## Estrutura
+![Organograma Preview](https://raw.githubusercontent.com/bumbeishvili/org-chart/master/assets/preview.png)
+
+---
+
+## 📊 Estrutura do Organograma
 
 - `Dockerfile` — imagem `nginx:1.27-alpine`, estática, sem build step
 - `nginx.conf` — gzip, cache de assets (7d), fallback SPA, endpoint `/healthz`
