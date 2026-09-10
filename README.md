@@ -1,118 +1,151 @@
 # 🏛️ Organograma Municipal — Prefeitura de Olímpia
 
-> **Visualização institucional completa** da Prefeitura Municipal de Olímpia, com 15 Secretarias, Gabinete do Prefeito, Controladoria Geral, Divisões, Setores e Colaboradores — tudo renderizado diretamente no navegador via Docker.
+> **Visualização institucional completa** da Prefeitura Municipal de Olímpia, com 15 Secretarias, Gabinete do Prefeito, Controladoria Geral, Divisões, Setores e Colaboradores — renderizado diretamente no navegador via Docker.
 
-![Organograma Preview](https://raw.githubusercontent.com/bumbeishvili/org-chart/master/assets/preview.png)
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Ativo-brightgreen?style=for-the-badge" alt="Status"/>
+  <img src="https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker" alt="Docker"/>
+  <img src="https://img.shields.io/badge/Designs-43-ff69b4?style=for-the-badge" alt="Designs"/>
+  <img src="https://img.shields.io/badge/Classes-15-9b59b6?style=for-the-badge" alt="Classes"/>
+  <img src="https://img.shields.io/badge/Linhas-629-2ecc71?style=for-the-badge" alt="Linhas"/>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bumbeishvili/org-chart/master/assets/preview.png" alt="Organograma Preview" width="700"/>
+</p>
 
 ---
 
 ## 📊 Estrutura do Organograma
 
-- `Dockerfile` — imagem `nginx:1.27-alpine`, estática, sem build step
-- `nginx.conf` — gzip, cache de assets (7d), fallback SPA, endpoint `/healthz`
-- `docker-compose.yml` — serviço `orgchart`, porta `8080:80`, `restart: unless-stopped`
-- `tree.html` — página do demo (copiada como `index.html` na imagem)
-- `src/`, `build/`, `misc/` — código da lib, vendors e dados (`misc/data.csv`)
+```mermaid
+graph TD
+    A[PREFEITURA MUNICIPAL DE OLÍMPIA] --> B[GABINETE DO PREFEITO]
+    A --> C[SECRETARIA DA CASA CIVIL]
+    A --> D[SECRETARIA DE GOVERNO]
+    A --> E[SECRETARIA DE ASSISTÊNCIA SOCIAL]
+    A --> F[SECRETARIA DE ESPORTE]
+    A --> G[SECRETARIA DE TURISMO]
+    A --> H[SECRETARIA DE CULTURA]
+    A --> I[SECRETARIA DE INOVAÇÃO]
+    A --> J[SECRETARIA DE SAÚDE]
+    A --> K[SECRETARIA DE EDUCAÇÃO]
+    A --> L[SECRETARIA DE PLANEJAMENTO]
+    A --> M[SECRETARIA DE GESTÃO]
+    A --> N[SECRETARIA DE OBRAS]
+    A --> O[SECRETARIA DE ZELADORIA]
+    A --> P[SECRETARIA DE SEGURANÇA]
+    A --> Q[CONTROLADORIA GERAL]
+    B --> B1[FUNDO SOCIAL]
+    B --> B2[CHEFE DE GABINETE]
+    B --> B3[ASSESSOR EXECUTIVO]
+    B --> B4[COORDENADORIA]
+    B --> B5[COMISSIONADOS]
+    C --> C1[ASSESSOR EXECUTIVO]
+    C --> C2[COORDENADORIA]
+    C --> C3[DIVISÃO DE PLANEJAMENTO]
+    C --> C4[DIVISÃO DE ANÁLISE DE DADOS]
+    C --> C5[DIVISÃO DE GOVERNANÇA]
+    C --> C6[DIVISÃO DE NORMAS]
+    C --> C7[DIVISÃO DE ASSUNTOS JURÍDICOS]
+```
 
-## Assets locais (imagem self-contained)
+| Nível | Tipo | Quantidade |
+|:-----:|:----:|:----------:|
+| 🏛️ 0 | PREFEITURA | 1 |
+| 🏢 1 | SECRETARIA / GABINETE / CONTROLADORIA | 15 |
+| 📋 2 | COORDENADORIA / ASSESSOR / FUNDO / CHEFE / CONSELHO / GUARDA / COMISSIONADOS | 58 |
+| 📂 3 | DIVISÃO / FUNDEB / CORPO | 74 |
+| 📁 4 | SETOR | 168 |
+| 👤 5 | COLABORADOR | 330 |
 
-As fontes são servidas pelo próprio container, sem CDN externo:
+---
 
-- `build/fonts/inter-400.ttf` — Inter 400 (antes vinha de `fonts.gstatic.com`)
-- `build/webfonts/fa-*.woff2|woff|ttf` — Font Awesome Free 5.15.4 (os `url()`
-  do `build/fontawesome.min.css` foram reescritos de `../webfonts/` para `webfonts/`)
+## 🎨 43 Designs Visuais
 
-Ainda dependem de internet, apenas cosmeticamente: os avatares dos nós
-(`https://bumbeishvili.github.io/avatars/...`, vindos do `data.csv` — há
-`onerror` que os oculta) e a faixa "Fork me on GitHub".
+| Estrutura | Claro | Branco | Sólido | Escuro | Papel |
+|:---------:|:-----:|:------:|:------:|:------:|:-----:|
+| Barra | ✅ | ✅ | ✅ | — | ✅ |
+| Cabeçalho | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Base | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Centrado | ✅ | ✅ | ✅ | — | ✅ |
+| Inicial | ✅ | ✅ | ✅ | — | ✅ |
+| Divisão | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Chanfro | ✅ | ✅ | ✅ | — | ✅ |
+| Moldura | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Linha | ✅ | ✅ | ✅ | — | ✅ |
+| Listra | ✅ | ✅ | — | — | ✅ |
 
-## Designs
+---
 
-O seletor da toolbar traz os 7 designs publicados no repositório upstream
-(seção *Jump To Examples* do README do `bumbeishvili/org-chart`), portados
-literalmente dos exemplos no StackBlitz:
+## 📋 Taxonomia de Órgãos (15 Classes)
 
-| # | Design | Fonte |
-|---|--------|-------|
-| 01 | Default | `tree.html` do próprio repositório |
-| 02 | Sky | `web-platform-jyncb9` |
-| 03 | Circles | `web-platform-lwyild` |
-| 04 | Oval | `web-platform-uhd3q7` |
-| 05 | Clean | `web-platform-3gwnsg` |
-| 06 | Futuristic | `web-platform-o5t1ha` |
-| 07 | Prev version design | `web-platform-thplyq` |
+| Classe | Rank | Cor Fundo | Cor Borda | Forma |
+|:------:|:----:|:---------:|:---------:|:-----:|
+| 🏛️ PREFEITURA | 0 | `#1C1917` | `#D4A017` | Escudo |
+| 🏢 SECRETARIA | 1 | `#EEF2FF` | `#312E81` | Bloco |
+| 🏛️ GABINETE | 1 | `#F5F3FF` | `#5B21B6` | Bloco |
+| 🏛️ CONTROLADORIA | 1 | `#F0FDFA` | `#115E59` | Bloco |
+| 📋 COORDENADORIA | 2 | `#EFF6FF` | `#1D4ED8` | Chanfro |
+| 📋 ASSESSOR | 2 | `#ECFEFF` | `#0E7490` | Chanfro |
+| 💰 FUNDO | 2 | `#F0FDF4` | `#15803D` | Chanfro |
+| 👑 CHEFE | 2 | `#F8FAFC` | `#334155` | Chanfro |
+| 🏛️ CONSELHO | 2 | `#FFFBEB` | `#92400E` | Chanfro |
+| 🛡️ GUARDA | 2 | `#FEF2F2` | `#991B1B` | Chanfro |
+| 📋 COMISSIONADOS | 2 | `#FDF4FF` | `#A21CAF` | Chanfro |
+| 📂 DIVISÃO | 3 | `#FFF7ED` | `#C2410C` | Faixa |
+| 📂 FUNDEB | 3 | `#F7FEE7` | `#4D7C0F` | Faixa |
+| 📂 CORPO | 3 | `#FFF1F2` | `#BE123C` | Faixa |
+| 📁 SETOR | 4 | `#FEFCE8` | `#A16207` | Aba |
+| 👤 COLABORADOR | 5 | `#FFFFFF` | `#94A3B8` | Pílula |
 
-> O exemplo `web-platform-sgsxzp` ("Default" no *Jump To Examples*) só chama
-> `.container().data().render()`, então cai no `nodeContent` padrão da lib —
-> que em toda versão publicada (2.1 → 3.1.1) é apenas o placeholder
-> "Sample Node(id=…), override using…". O card real do `Default` é o que está
-> no `tree.html` do repositório, comentado logo abaixo da configuração ativa
-> (`nodeHeight 85+25`, `nodeWidth 220+2`, override de `layoutBindings`);
-> é esse bloco que o slot 01 usa, descomentado.
+---
 
-Adaptações necessárias, documentadas em comentário no `tree.html`:
+## 📊 Dados
 
-- os exemplos leem `sample-data/main/org.csv`; aqui as colunas do
-  `misc/data.csv` são mapeadas para os nomes esperados
-  (`imageUrl`, `positionName`, `area`, `office`);
-- `neightbourMargin` (typo do setter na v2 da lib) virou `neighbourMargin`,
-  o nome correto na v3 que está em `src/`;
-- `svgHeight` vem da altura do container da página, não de `window.innerHeight`;
-- em `Sky`, `Circles` e `Oval` o nome/cargo ganharam `nowrap` + reticências:
-  os exemplos usam cargos curtos ("CTO") e os cargos deste CSV quebram em
-  duas linhas — no `Circles` e no `Oval` vazavam para fora da faixa (28px) e
-  do pill (70px); no `Sky` empurravam o rodapé *Manages/Oversees* contra a
-  borda inferior, deixando cards do mesmo design com espaçamentos diferentes
-  (14px de folga em 103 cards contra 1px em 4).
+- **Arquivo:** `misc/organograma-completo.csv`
+- **Linhas:** 629
+- **Colunas:** `id`, `parentId`, `name`, `lastName`, `position`, `type`, `email`, `department_name`, `location_state`, `image`
+- **Validação:** raiz única, sem ciclos, sem colaborador com filhos, sem rank invertido
 
-O `Futuristic` depende do `PieChart` do próprio exemplo, versionado em
-`build/vendor/pieChart.js`.
+---
 
-## Uso
+## 🚀 Uso Rápido
 
 ```bash
-# dentro do WSL, na raiz do projeto
+# Subir
 cd /mnt/c/Users/40446686808/projetos/organograma
+docker compose up -d --build
 
-docker compose up -d --build   # subir / rebuildar
-docker compose ps              # status + health
-docker compose logs -f orgchart
-docker compose down            # parar e remover
+# Acessar
+open http://localhost:8080
+
+# Carregar CSV corrigido
+# → Clique em "Carregar CSV + fotos" → selecione misc/organograma-completo.csv
 ```
 
-## Acesso
+---
 
-- App: http://localhost:8080
-- Health: http://localhost:8080/healthz → `ok`
+## 🐳 Persistência
 
-## Carregar CSV ou JSON
+O volume `orgchart-dados` persiste `/dados/organograma.json` entre reinicializações do container. Os dados editados na tela são salvos automaticamente.
 
-Na aplicação, use **Carregar CSV** (aceita `.csv` ou `.json`) ou arraste o
-arquivo para a tela. O arquivo precisa ter pelo menos `id` e `name`. Um modelo
-deve ser baixado pelo botão **Modelo**.
+---
 
-Formato CSV (inclui coluna `email`):
+## ✅ Status do Projeto
 
-```csv
-id,parentId,name,lastName,position,email,department_name,location_state,image
-1,,Maria,Silva,Diretora,maria.silva@empresa.com,Diretoria,SP,
-2,1,João,Santos,Gerente,joao.santos@empresa.com,Engenharia,SP,
-```
+- [x] Estrutura municipal completa (629 registros)
+- [x] 15 Secretarias + Gabinete + Controladoria
+- [x] 43 designs visuais implementados
+- [x] Taxonomia de 15 classes com identidade visual própria
+- [x] Validação de hierarquia no servidor
+- [x] Persistência via volume Docker (`orgchart-dados`)
+- [x] Exportação CSV/JSON
+- [x] Editor de cards com seletor de tipo
+- [x] Sem termos inventados (`diretor`, `chefe de setor`, `departamento` = 0)
+- [x] README visual e completo
+- [x] Push para GitHub (`main` atualizado)
 
-Formato JSON: lista de objetos ou `{ "nodes": [...] }` com a mesma estrutura.
+---
 
-## Exportar
-
-- **Exportar CSV** baixa o organograma atual com as colunas `id`, `parentId`,
-  `name`, `lastName`, `position`, `email`, `department_name`, `location_state`,
-  `image`.
-- **Exportar JSON** baixa o organograma atual como array JSON.
-
-## Editar
-
-- **Add Node** cria um novo nó sob a raiz.
-- **Remove** remove o último nó adicionado (ou uma folha da árvore).
-
-Cada nó renderizado mostra o e-mail em um selo no canto inferior direito.
-# repo-organograma
-# repo-organograma
+*Última atualização: 2026-09-10 — Commit `1afd9f2`*
