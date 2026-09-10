@@ -12,8 +12,10 @@ services:
       dockerfile: Dockerfile
     image: bumbeishvili-orgchart:latest
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "8080:80"
+      - "8085:80"
     networks:
       - net
     volumes:

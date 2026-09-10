@@ -14,7 +14,9 @@ const RAIZ = __dirname;
 const DIR_DADOS = process.env.DADOS_DIR || "/dados";
 const ARQUIVO = path.join(DIR_DADOS, "organograma.json");
 const ANTERIOR = path.join(DIR_DADOS, "organograma.anterior.json");
-const PORTA = Number(process.env.PORT || 80);
+// 8085 e o default de quem roda `node server.js` na maquina. No container a
+// porta vem do ENV PORT=80 do Dockerfile, que casa com EXPOSE/healthcheck.
+const PORTA = Number(process.env.PORT || 8085);
 const LIMITE_BYTES = 25 * 1024 * 1024;
 
 const TIPOS = {
@@ -45,14 +47,24 @@ function json(res, status, corpo) {
 // Mesmas regras do front: um organograma sem raiz, com id repetido ou com pai
 // inexistente não desenha. Validar aqui evita gravar um arquivo que deixaria a
 // página em branco no próximo acesso de todo mundo.
-const TIPOS_VALIDOS = new Set(["secretaria", "divisao", "setor", "colaborador", "orgao", "gabinete", "coordenadoria", "assessor", "fundo", "unidade"]);
+// Mesma lista que a tabela TIPOS do tree.html, mais os apelidos do generico
+// (unidade/orgao). Comparar sem acento: o Excel grava "DIVISAO" e "DIVISAO",
+// e so a forma sem acento estava na lista.
+const TIPOS_VALIDOS = new Set([
+  "prefeitura", "secretaria", "gabinete", "controladoria", "coordenadoria",
+  "assessor", "fundo", "chefe", "conselho", "guarda", "comissionados",
+  "divisao", "fundeb", "corpo", "setor", "colaborador", "unidade", "orgao"
+]);
+
+const semAcento = (texto) =>
+  String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 
 function classificarTipo(linha) {
   const nome = String(linha.name ?? "").trim();
   const pos = String(linha.position ?? "").trim();
   const dept = String(linha.department_name ?? "").trim();
   const temNome = nome.length > 0;
-  const tipoInformado = String(linha.type ?? "").trim().toLowerCase();
+  const tipoInformado = semAcento(linha.type);
 
   // Se o tipo foi informado explicitamente, valida
   if (tipoInformado) {

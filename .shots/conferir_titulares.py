@@ -9,7 +9,7 @@ async def main():
         pg = await ctx.new_page()
         erros = []
         pg.on("pageerror", lambda e: erros.append(str(e)))
-        await pg.goto("http://localhost:8080", wait_until="networkidle")
+        await pg.goto("http://localhost:8085", wait_until="networkidle")
         await pg.evaluate("try{localStorage.clear();sessionStorage.clear()}catch(e){}")
         await pg.reload(wait_until="networkidle")
         await pg.wait_for_function(

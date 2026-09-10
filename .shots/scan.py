@@ -1,9 +1,9 @@
 """Scanner de erros de GUI e de sistema — varre TODOS os 50 temas no
-localhost:8080 com o CSV real e reporta defeitos sem ninguem apontar."""
+localhost:8085 com o CSV real e reporta defeitos sem ninguem apontar."""
 import asyncio, sys, json
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:8080"
+URL = "http://localhost:8085"
 CSV = "/mnt/c/Users/40446686808/projetos/organograma_antigo/organograma-completo.csv"
 
 # Executado dentro da pagina. Devolve os defeitos observados no DOM real.

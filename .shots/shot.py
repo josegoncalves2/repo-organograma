@@ -1,7 +1,7 @@
 import asyncio, sys, json
 from playwright.async_api import async_playwright
 
-URL  = "http://localhost:8080"
+URL  = "http://localhost:8085"
 CSV  = "/mnt/c/Users/40446686808/projetos/organograma_antigo/organograma-completo.csv"
 OUT  = "/mnt/c/Users/40446686808/projetos/organograma/.shots"
 

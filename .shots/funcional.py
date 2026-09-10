@@ -1,9 +1,9 @@
 """Teste funcional: exercita CADA acao da barra de ferramentas no
-localhost:8080 com o CSV real e valida o RESULTADO de cada uma."""
+localhost:8085 com o CSV real e valida o RESULTADO de cada uma."""
 import asyncio, json, os
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:8080"
+URL = "http://localhost:8085"
 CSV = "/mnt/c/Users/40446686808/projetos/organograma_antigo/organograma-completo.csv"
 DL = "/tmp/dl"
 

@@ -14,9 +14,14 @@ COPY index.js ./
 COPY src/ ./src/
 COPY build/ ./build/
 COPY misc/ ./misc/
+COPY sidebar/ ./sidebar/
 
 # Volume: é aqui que organograma.json sobrevive a rebuilds do container.
 ENV DADOS_DIR=/dados
+# Explícito de propósito: EXPOSE, healthcheck, o mapeamento do compose e o
+# label do traefik falam todos em 80. Deixar a porta no default do server.js
+# fazia o container escutar noutra porta e nunca ficar healthy.
+ENV PORT=80
 RUN mkdir -p /dados && chown -R node:node /dados /app
 VOLUME ["/dados"]
 

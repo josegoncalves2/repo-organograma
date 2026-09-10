@@ -7,7 +7,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=["--no-sandbox"])
         pg = await b.new_page(viewport={"width": 1500, "height": 900})
-        await pg.goto("http://localhost:8080", wait_until="networkidle")
+        await pg.goto("http://localhost:8085", wait_until="networkidle")
         await pg.wait_for_function(
             "() => document.querySelectorAll('.chart-container g.node').length > 0", timeout=30000)
         info = await pg.evaluate("""() => {

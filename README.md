@@ -118,7 +118,7 @@ cd /mnt/c/Users/40446686808/projetos/organograma
 docker compose up -d --build
 
 # Acessar
-open http://localhost:8080
+open http://localhost:${PORTA_HOST:-8085}
 
 # Carregar CSV corrigido
 # → Clique em "Carregar CSV + fotos" → selecione misc/organograma-completo.csv

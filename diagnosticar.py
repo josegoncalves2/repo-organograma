@@ -2,7 +2,7 @@
 """Diagnostico do organograma: mostra a estrutura hierarquica atual."""
 import json, urllib.request, sys
 
-URL = "http://localhost:8080/api/organograma"
+URL = "http://localhost:8085/api/organograma"
 try:
     with urllib.request.urlopen(URL, timeout=10) as r:
         data = json.load(r)

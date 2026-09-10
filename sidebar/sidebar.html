@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sidebar — Organograma</title>
+  <link rel="stylesheet" href="../build/inter.css" />
+  <link rel="stylesheet" href="sidebar.css" />
+  <link rel="stylesheet" href="../build/fontawesome.min.css" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__header">
+      <div class="sidebar__title" title="Visualização hierárquica completa">Árvore Completa</div>
+      <button class="sidebar__toggle" onclick="toggleSidebar()" title="Recolher/expandir sidebar" aria-label="Toggle sidebar">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+
+    <div class="sidebar__search">
+      <input type="text" id="sidebar-search" placeholder="Buscar nó, cargo ou pessoa..." oninput="filterTree(this.value)" />
+    </div>
+
+    <div class="sidebar__tree" id="sidebar-tree">
+      <!-- A árvore é renderizada via JS -->
+    </div>
+
+    <div class="sidebar__footer">
+      <span id="sidebar-count">0 nós</span>
+      <span>Hierarquia</span>
+    </div>
+  </aside>
+
+  <script>
+    // Dados de exemplo — substitua por fetch real se necessário
+    let treeData = [];
+    let expandedIds = new Set();
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+      // Quem reserva os 320px e o <aside> da pagina principal; encolher so
+      // este aqui espremia o painel dentro de um iframe que continuava largo.
+      if (window.parent !== window && window.parent.toggleSidebarPanel) {
+        window.parent.toggleSidebarPanel();
+      }
+    }
+
+    function filterTree(query) {
+      const q = query.toLowerCase().trim();
+      renderTree(q);
+    }
+
+    function renderTree(query = '') {
+      const container = document.getElementById('sidebar-tree');
+      container.innerHTML = '';
+      if (!treeData || !treeData.length) {
+        container.innerHTML = '<div style="padding:16px;color:#94a3b8;font-size:13px;">Carregue o organograma para visualizar a árvore.</div>';
+        document.getElementById('sidebar-count').textContent = '0 nós';
+        return;
+      }
+
+      const root = treeData.find(r => !String(r.parentId || '').trim()) || treeData[0];
+      const visible = query ? treeData.filter(r => {
+        const text = `${r.name || ''} ${r.lastName || ''} ${r.position || ''} ${r.id || ''}`.toLowerCase();
+        return text.includes(query);
+      }) : treeData;
+
+      const visibleIds = new Set(visible.map(r => String(r.id)));
+      // Incluir pais dos visíveis para manter contexto
+      visible.forEach(r => {
+        let atual = r;
+        while (atual) {
+          visibleIds.add(String(atual.id));
+          const pai = treeData.find(p => String(p.id) === String(atual.parentId || '').trim());
+          atual = pai || null;
+        }
+      });
+
+      const nodesToShow = treeData.filter(r => visibleIds.has(String(r.id)));
+      const rootNode = nodesToShow.find(r => !String(r.parentId || '').trim()) || nodesToShow[0];
+      if (!rootNode) return;
+
+      buildNode(container, rootNode, nodesToShow, 0);
+      document.getElementById('sidebar-count').textContent = `${nodesToShow.length} nós`;
+    }
+
+    function buildNode(container, node, allNodes, depth) {
+      const id = String(node.id);
+      const children = allNodes.filter(r => String(r.parentId || '').trim() === id);
+      const hasChildren = children.length > 0;
+      const isExpanded = expandedIds.has(id);
+
+      const nodeEl = document.createElement('div');
+      nodeEl.className = 'tree-node';
+      // selectNode() procura por [data-id]: sem isto o no clicado nunca
+      // ficava marcado como ativo. E 'expanded' entrava mesmo em quem so
+      // tinha filhos, girando o chevron de itens fechados.
+      nodeEl.dataset.id = id;
+      if (hasChildren) nodeEl.classList.add('has-children');
+      if (isExpanded) nodeEl.classList.add('expanded');
+
+      // Badge de tipo (cor simplificada)
+      const tipo = (node.type || '').toLowerCase();
+      const badgeColor = tipo === 'secretaria' ? '#312E81' : tipo === 'divisao' ? '#C2410C' : tipo === 'setor' ? '#A16207' : tipo === 'colaborador' ? '#94A3B8' : '#1565C0';
+
+      const labelText = node.name ? `${node.name} ${node.lastName || ''}`.trim() : (node.position || `#${node.id}`);
+      // Unidade nao tem nome: o rotulo ja e a position. Repetir a mesma string
+      // no subtitulo dividia a linha em dois e truncava as duas metades
+      // ("PREFEIT... PREFEIT..."). Subtitulo so quando acrescenta algo.
+      const subText = node.name ? (node.position || '') : '';
+
+      nodeEl.innerHTML = `
+        <div class="node-row">
+          ${hasChildren ? `<span class="tree-node__chevron" onclick="toggleNode('${id}', event)"><i class="fas fa-chevron-right"></i></span>` : '<span style="width:16px;flex-shrink:0;"></span>'}
+          <span class="node-badge" style="background:${badgeColor};border-color:${badgeColor};"></span>
+          <span class="node-label" title="${labelText}">${labelText}</span>
+          ${subText ? `<span class="node-sub" title="${subText}">${subText}</span>` : ''}
+          <span class="node-count">${children.length}</span>
+          <span class="node-actions">
+            ${hasChildren ? `<button onclick="escoparNo('${id}', event)" title="Ver o organograma a partir daqui"><i class="fas fa-sitemap"></i></button>` : ''}
+            <button onclick="focusNode('${id}', event)" title="Centralizar"><i class="fas fa-crosshairs"></i></button>
+            <button onclick="editNode('${id}', event)" title="Editar"><i class="fas fa-pen"></i></button>
+            <button onclick="addChild('${id}', event)" title="Adicionar subordinado"><i class="fas fa-plus"></i></button>
+            <button onclick="deleteNode('${id}', event)" title="Remover"><i class="fas fa-trash"></i></button>
+          </span>
+        </div>
+      `;
+
+      nodeEl.onclick = (e) => {
+        if (e.target.closest('.node-actions') || e.target.closest('.tree-node__chevron')) return;
+        selectNode(id);
+      };
+
+      container.appendChild(nodeEl);
+
+      if (hasChildren && isExpanded) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'tree-children';
+        children.sort((a, b) => {
+          const ra = (a.rank || 99);
+          const rb = (b.rank || 99);
+          return ra !== rb ? ra - rb : (a.name || '').localeCompare(b.name || '', 'pt-BR');
+        }).forEach(child => buildNode(childrenContainer, child, allNodes, depth + 1));
+        container.appendChild(childrenContainer);
+      }
+    }
+
+    function toggleNode(id, event) {
+      event.stopPropagation();
+      if (expandedIds.has(id)) expandedIds.delete(id);
+      else expandedIds.add(id);
+      renderTree(document.getElementById('sidebar-search').value);
+    }
+
+    function selectNode(id) {
+      document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+      const el = document.querySelector('.tree-node[data-id="' + id + '"]');
+      if (el) el.classList.add('active');
+      // Comunicar com a página principal
+      if (window.parent && window.parent.selectNode) {
+        window.parent.selectNode(id);
+      }
+    }
+
+    // Atalho para o mesmo escopo do seletor da toolbar: navegar a arvore e
+    // abrir dali e mais direto do que procurar o nome numa lista de 283.
+    function escoparNo(id, event) {
+      event.stopPropagation();
+      if (window.parent && window.parent.aplicarEscopo) window.parent.aplicarEscopo(id);
+    }
+
+    function focusNode(id, event) {
+      event.stopPropagation();
+      // centerFocusNode() usa o no selecionado: sem selecionar antes, o botao
+      // centralizava o card anterior em vez do que foi clicado.
+      selectNode(id);
+      if (window.parent && window.parent.centerFocusNode) window.parent.centerFocusNode();
+    }
+
+    function editNode(id, event) {
+      event.stopPropagation();
+      if (window.parent && window.parent.abrirEditor) window.parent.abrirEditor(id);
+    }
+
+    function addChild(id, event) {
+      event.stopPropagation();
+      if (window.parent && window.parent.addSampleNode) {
+        // A função original precisa de um nó selecionado; selecionamos e chamamos
+        window.parent.selectNode(id);
+        window.parent.addSampleNode();
+      }
+    }
+
+    function deleteNode(id, event) {
+      event.stopPropagation();
+      if (window.parent && window.parent.removeSampleNode) {
+        window.parent.selectNode(id);
+        window.parent.removeSampleNode();
+      }
+    }
+
+    // Expor dados para a página principal
+    window.setSidebarData = function(data) {
+      treeData = data || [];
+      expandedIds = new Set();
+      // Expandir raiz automaticamente
+      const root = treeData.find(r => !String(r.parentId || '').trim());
+      if (root) expandedIds.add(String(root.id));
+      renderTree();
+    };
+
+    // Inicial
+    document.addEventListener('DOMContentLoaded', () => {
+      renderTree();
+    });
+  </script>
+</body>
+</html>

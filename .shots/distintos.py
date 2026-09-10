@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:8080"
+URL = "http://localhost:8085"
 CSV = "/mnt/c/Users/40446686808/projetos/organograma_antigo/organograma-completo.csv"
 NORM = (160, 80)          # tudo reduzido ao mesmo tamanho: forma e cor, nao escala
 LIMIAR = 0.045            # abaixo disso = visualmente iguais

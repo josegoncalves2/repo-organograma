@@ -3,7 +3,7 @@
 import json, urllib.request
 from collections import defaultdict
 
-URL = "http://localhost:8080/api/organograma"
+URL = "http://localhost:8085/api/organograma"
 with urllib.request.urlopen(URL, timeout=10) as r:
     data = json.load(r)
 linhas = data.get("linhas", [])

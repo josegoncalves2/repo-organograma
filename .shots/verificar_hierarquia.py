@@ -7,7 +7,7 @@ linha pendura em assessoria e que nenhum SETOR pendura em SETOR.
 import asyncio, sys, json
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:8080"
+URL = "http://localhost:8085"
 OUT = "/mnt/c/Users/40446686808/projetos/organograma/.shots"
 
 CHECAGEM = """
