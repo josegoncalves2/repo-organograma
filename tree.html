@@ -11,10 +11,11 @@
  <body>
   <div class="layout-with-sidebar">
    <aside class="sidebar" id="sidebar">
-    <iframe
-     src="sidebar/sidebar.html"
-     title="Árvore completa do organograma"
-    ></iframe>
+   <iframe
+    src="sidebar/sidebar.html"
+    title="Árvore completa do organograma"
+   ></iframe>
+    <div class="sidebar-resizer" id="sidebar-resizer" title="Arraste para ajustar a largura"></div>
    </aside>
 
   <!----------------   ORG CHART NON ESSENTIAL CONTENT ------------>
@@ -80,16 +81,31 @@
     class="btn file-upload__label"
     href="misc/modelo-organograma.csv"
     download="modelo-organograma.csv"
-    title="Baixar modelo de CSV/JSON"
+    title="Baixar modelo CSV para importação"
    >
-    <i class="fas fa-download"></i> Modelo
+    <i class="fas fa-file-csv"></i> Modelo CSV
    </a>
 
-   <button class="btn" onclick="downloadCsv()" title="Exportar o organograma como CSV">
+   <a
+    class="btn file-upload__label"
+    href="misc/modelo-organograma.json"
+    download="modelo-organograma.json"
+    title="Baixar modelo JSON para importação"
+   >
+    <i class="fas fa-file-code"></i> Modelo JSON
+   </a>
+
+   <button class="btn" onclick="downloadCsv(false)" title="Exportar todo o organograma como CSV">
     <i class="fas fa-file-export"></i> Exportar CSV
    </button>
-   <button class="btn" onclick="downloadJson()" title="Exportar o organograma como JSON">
+   <button class="btn" onclick="downloadJson(false)" title="Exportar todo o organograma como JSON">
     <i class="fas fa-file-code"></i> Exportar JSON
+   </button>
+   <button class="btn" onclick="downloadCsv(true)" title="Exportar o ramo selecionado ou a visão atual como CSV">
+    <i class="fas fa-code-branch"></i> CSV Parte
+   </button>
+   <button class="btn" onclick="downloadJson(true)" title="Exportar o ramo selecionado ou a visão atual como JSON">
+    <i class="fas fa-code-branch"></i> JSON Parte
    </button>
 
    <label class="theme-picker">
@@ -99,6 +115,10 @@
 
    <button class="btn" onclick="abrirCores()" title="Trocar as cores de cada tipo">
     <i class="fas fa-fill-drip"></i> Cores
+   </button>
+
+   <button class="btn" id="theme-mode-toggle" onclick="toggleThemeMode()" title="Alternar modo claro/escuro">
+    <i class="fas fa-moon"></i> Dark
    </button>
 
 
@@ -1576,8 +1596,46 @@
    // entram COLABORADOR (folha) nem a propria PREFEITURA (que ja e o inteiro).
    const TIPOS_ESCOPAVEIS = [
     "SECRETARIA", "GABINETE", "CONTROLADORIA", "COORDENADORIA",
-    "GUARDA", "CONSELHO", "FUNDO", "CORPO", "DIVISAO", "FUNDEB", "SETOR"
+   "GUARDA", "CONSELHO", "FUNDO", "CORPO", "DIVISAO", "FUNDEB", "SETOR"
    ];
+
+   const ROTULOS_GENERICOS_ESCOPOS = new Set([
+    "COORDENADORIA",
+    "ASSESSOR EXECUTIVO",
+    "ASSESSOR",
+    "CHEFE",
+    "COMISSIONADOS"
+   ]);
+
+   function deveAparecerNoEscopo(row) {
+    const tipo = classificar(row);
+    if (!TIPOS_ESCOPAVEIS.includes(tipo)) return false;
+    const rotulo = normalizar(rotuloLegivel(row));
+    const tipoRotulo = normalizar((TIPOS[tipo] && TIPOS[tipo].rotulo) || tipo);
+    if (ROTULOS_GENERICOS_ESCOPOS.has(rotulo)) return false;
+    if (rotulo === tipoRotulo) return false;
+    return true;
+   }
+
+   function ancestralInstitucional(row) {
+    let atual = currentData.find((r) => String(r.id) === String(row.parentId || "").trim());
+    const visto = new Set([String(row.id)]);
+    while (atual && !visto.has(String(atual.id))) {
+     visto.add(String(atual.id));
+     const tipo = classificar(atual);
+     if (["SECRETARIA", "GABINETE", "CONTROLADORIA"].includes(tipo)) return atual;
+     atual = currentData.find((r) => String(r.id) === String(atual.parentId || "").trim());
+    }
+    return null;
+   }
+
+   function rotuloEscopo(row, repetidos) {
+    const rotulo = rotuloLegivel(row);
+    if (!repetidos.has(normalizar(rotulo))) return rotulo;
+    const ancestral = ancestralInstitucional(row);
+    if (!ancestral) return `${rotulo} (#${row.id})`;
+    return `${rotulo} — ${rotuloLegivel(ancestral)}`;
+   }
 
    function buildEscopoMenu() {
     const select = document.getElementById("escopo-select");
@@ -1587,12 +1645,22 @@
 
     // Agrupado por tipo: com ~250 unidades uma lista corrida e inutilizavel.
     const porTipo = new Map();
+    const candidatos = [];
     for (const row of currentData) {
      const tipo = classificar(row);
-     if (!TIPOS_ESCOPAVEIS.includes(tipo)) continue;
+     if (!deveAparecerNoEscopo(row)) continue;
+     candidatos.push(row);
      if (!porTipo.has(tipo)) porTipo.set(tipo, []);
      porTipo.get(tipo).push(row);
     }
+    const contagemRotulos = new Map();
+    candidatos.forEach((row) => {
+     const chave = normalizar(rotuloLegivel(row));
+     contagemRotulos.set(chave, (contagemRotulos.get(chave) || 0) + 1);
+    });
+    const repetidos = new Set(
+     [...contagemRotulos.entries()].filter((item) => item[1] > 1).map((item) => item[0])
+    );
 
     for (const tipo of TIPOS_ESCOPAVEIS) {
      const linhas = porTipo.get(tipo);
@@ -1600,7 +1668,7 @@
      const grupo = document.createElement("optgroup");
      grupo.label = `${TIPOS[tipo].rotulo} (${linhas.length})`;
      linhas
-      .map((row) => ({ id: String(row.id), rotulo: rotuloLegivel(row) }))
+      .map((row) => ({ id: String(row.id), rotulo: rotuloEscopo(row, repetidos) }))
       .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"))
       .forEach((item) => grupo.appendChild(new Option(item.rotulo, item.id)));
      select.appendChild(grupo);
@@ -1742,25 +1810,77 @@
     return `${row.name || ""} ${row.lastName || ""}`.trim();
    }
 
-   // ABSORCAO DESLIGADA.
-   //
-   // Esta funcao fundia o primeiro ocupante DENTRO da caixa da unidade: o
-   // card do SETOR passava a exibir o nome da pessoa, e a linha da pessoa
-   // sumia do grafico. Medido no organograma-completo.csv: 178 unidades
-   // absorviam o titular, e o desenho caia de 629 para 451 cards.
-   //
-   // Isso quebra duas regras ao mesmo tempo: COLABORADOR nao e SETOR (um
-   // card de SETOR carregando identidade de pessoa), e nada pode ser
-   // omitido (178 pessoas desapareciam da tela).
-   //
-   // Agora cada linha do arquivo e um card, com o selo da propria classe.
-   // A funcao e mantida — junto de titularDe/linhasDoGrafico, que dependem
-   // dela — porque a estrutura de reparenteamento continua sendo o caminho
-   // por onde os filhos de um no removido seriam repassados; ela apenas
-   // nao absorve mais ninguem.
+   const TIPOS_SEM_GESTOR_EMBUTIDO = new Set(["PREFEITURA", "COLABORADOR", "COMISSIONADOS"]);
+   const CARGO_GESTOR_PADRAO = {
+    SECRETARIA: "Secretario",
+    CONTROLADORIA: "Controlador",
+    GABINETE: "Gestor",
+    DIVISAO: "Diretor",
+    SETOR: "Chefe",
+    ASSESSOR: "Assessor Executivo",
+    COORDENADORIA: "Coordenador",
+    FUNDO: "Gestor",
+    CHEFE: "Chefe",
+    CONSELHO: "Presidente",
+    GUARDA: "Comandante",
+    FUNDEB: "Gestor",
+    CORPO: "Comandante"
+   };
+
+   function cargoGestorDe(unidade, titular) {
+    const tipo = classificar(unidade);
+    const cargo = String(titular && titular.position || "").trim();
+    return cargo || CARGO_GESTOR_PADRAO[tipo] || "Gestor";
+   }
+
+   function pareceGestorDaUnidade(unidade, pessoa) {
+    const tipo = classificar(unidade);
+    const cargo = normalizar(pessoa.position);
+    const rotulo = normalizar(unidade.position);
+    if (!cargo) return false;
+    if (cargo === rotulo) return true;
+    const esperado = normalizar(CARGO_GESTOR_PADRAO[tipo]);
+    if (esperado && cargo.includes(esperado)) return true;
+    if (tipo === "SECRETARIA" && cargo.includes("SECRETARI")) return true;
+    if (tipo === "CONTROLADORIA" && cargo.includes("CONTROL")) return true;
+    if (tipo === "DIVISAO" && cargo.includes("DIRETOR")) return true;
+    if (tipo === "SETOR" && cargo.includes("CHEFE")) return true;
+    if (tipo === "COORDENADORIA" && cargo.includes("COORDEN")) return true;
+    if (tipo === "ASSESSOR" && cargo.includes("ASSESSOR")) return true;
+    return false;
+   }
+
+   function gestorDaUnidade(unidade, filhosDiretos) {
+    const tipo = classificar(unidade);
+    if (TIPOS_SEM_GESTOR_EMBUTIDO.has(tipo)) return null;
+    const colaboradores = filhosDiretos.filter((filho) => ehColaborador(filho));
+    if (!colaboradores.length) return null;
+    const porCargo = colaboradores.filter((pessoa) => pareceGestorDaUnidade(unidade, pessoa));
+    if (porCargo.length === 1) return porCargo[0];
+    if (colaboradores.length === 1) return colaboradores[0];
+    return null;
+   }
+
+   // Unidade e gestor nao sao a mesma entidade nos dados. Na visualizacao,
+   // porem, o gestor direto pertence ao card da unidade: Secretaria + Secretario,
+   // Divisao + Diretor, Setor + Chefe. Isso evita desenhar a pessoa como se
+   // fosse um departamento irmao.
    function mapearTitulares() {
     titularPorUnidade = new Map();
     idsAbsorvidos = new Set();
+    const filhosPorPai = new Map();
+    for (const row of currentData) {
+     const pai = String(row.parentId || "").trim();
+     if (!filhosPorPai.has(pai)) filhosPorPai.set(pai, []);
+     filhosPorPai.get(pai).push(row);
+    }
+    for (const unidade of currentData) {
+     if (!ehUnidade(unidade)) continue;
+     const titular = gestorDaUnidade(unidade, filhosPorPai.get(String(unidade.id)) || []);
+     if (!titular) continue;
+     titularPorUnidade.set(String(unidade.id), titular);
+     idsAbsorvidos.add(String(titular.id));
+    }
    }
 
    function repeteRotuloDoPai(row) {
@@ -1816,7 +1936,7 @@
     );
    }
 
-   function linhasDoGrafico() {
+   function linhasEstruturais(recortar) {
     const paiDe = new Map();
     for (const [idUnidade, titular] of titularPorUnidade) {
      paiDe.set(String(titular.id), idUnidade);
@@ -1828,7 +1948,7 @@
       return novoPai ? Object.assign({}, row, { parentId: novoPai }) : row;
      });
 
-    linhas = recortarEscopo(linhas);
+    if (recortar) linhas = recortarEscopo(linhas);
 
     return linhas.sort((a, b) => {
      const pa = String(a.parentId || "").trim();
@@ -1839,6 +1959,10 @@
      if (ra !== rb) return ra - rb;
      return rotuloLegivel(a).localeCompare(rotuloLegivel(b), "pt-BR");
     });
+   }
+
+   function linhasDoGrafico() {
+    return linhasEstruturais(true);
    }
 
    // Mantida porque mapearTitulares/linhasDoGrafico dependem dela, mas agora
@@ -1882,7 +2006,7 @@
         ? ""
         : row.position || ""
       : titular
-      ? nomeCompleto(titular)
+      ? `${cargoGestorDe(row, titular)}: ${nomeCompleto(titular)}`
       : "",
      // Os cards originais leem `position` direto; sem espelhar aqui, a unidade
      // aparece com o proprio nome repetido na segunda linha.
@@ -1895,9 +2019,12 @@
         ? ""
         : row.position || ""
       : titular
-      ? nomeCompleto(titular)
+      ? `${cargoGestorDe(row, titular)}: ${nomeCompleto(titular)}`
       : "",
      imageUrl: (titular ? titular.image : row.image) || "",
+     _gestorId: titular ? titular.id : "",
+     _gestorNome: titular ? nomeCompleto(titular) : "",
+     _gestorCargo: titular ? cargoGestorDe(row, titular) : "",
      area: row.department_name || "",
      office: row.location_state || row.department_name || "",
      email: (titular ? titular.email : row.email) || ""
@@ -1980,6 +2107,7 @@
    function selectNode(id) {
     selectedNodeId = id === null || id === undefined ? null : String(id);
     applySelectionStyle();
+    enviarSelecaoAoSidebar();
    }
 
    // Abaixo deste zoom o nome e o cargo no card viram borrão. Quando a árvore
@@ -2020,7 +2148,22 @@
    function afterRender() {
     requestAnimationFrame(() => {
      attachEmailOverlay();
+     attachCardShortcuts();
      applySelectionStyle();
+    });
+   }
+
+   function attachCardShortcuts() {
+    document.querySelectorAll(".chart-container g.node").forEach((node) => {
+     if (node.dataset.shortcutsReady) return;
+     node.dataset.shortcutsReady = "1";
+     node.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      const id = nodeIdFromElement(node);
+      if (id === null) return;
+      selectNode(id);
+      abrirEditor(id);
+     });
     });
    }
 
@@ -2078,13 +2221,76 @@
 
    function enviarDadosAoSidebar() {
     const janela = janelaDoSidebar();
-    if (janela && janela.setSidebarData) janela.setSidebarData(currentData);
+    if (janela && janela.setSidebarData) janela.setSidebarData(linhasEstruturais(false).map(toChartRow));
+    enviarTemaAoSidebar();
+   }
+
+   function enviarSelecaoAoSidebar() {
+    const janela = janelaDoSidebar();
+    if (janela && janela.setSidebarSelection) janela.setSidebarSelection(selectedNodeId);
+   }
+
+   function enviarTemaAoSidebar() {
+    const janela = janelaDoSidebar();
+    if (janela && janela.setSidebarTheme) janela.setSidebarTheme(appThemeMode);
    }
 
    // Recolher é do lado de fora: o botão vive dentro do iframe, mas quem tem
    // de encolher é o <aside> que reserva a coluna de 320px nesta página.
    function toggleSidebarPanel() {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+    const sidebar = document.getElementById("sidebar");
+    const recolhido = sidebar.classList.toggle("collapsed");
+    if (recolhido) {
+     sidebar.style.flexBasis = "48px";
+     sidebar.style.width = "48px";
+    } else {
+     try {
+      aplicarLarguraSidebar(localStorage.getItem(CHAVE_SIDEBAR_LARGURA) || 320);
+     } catch (erro) {
+      aplicarLarguraSidebar(320);
+     }
+    }
+   }
+
+   const CHAVE_SIDEBAR_LARGURA = "organograma:sidebarLargura";
+
+   function aplicarLarguraSidebar(largura) {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || !largura) return;
+    const limite = Math.min(Math.max(Number(largura), 260), Math.min(560, window.innerWidth - 180));
+    sidebar.style.flexBasis = `${limite}px`;
+    sidebar.style.width = `${limite}px`;
+   }
+
+   function iniciarResizeSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const handle = document.getElementById("sidebar-resizer");
+    if (!sidebar || !handle) return;
+    try {
+     aplicarLarguraSidebar(localStorage.getItem(CHAVE_SIDEBAR_LARGURA));
+    } catch (erro) {}
+    handle.addEventListener("pointerdown", (event) => {
+     if (sidebar.classList.contains("collapsed")) return;
+     event.preventDefault();
+     handle.setPointerCapture(event.pointerId);
+     document.body.classList.add("is-resizing-sidebar");
+     const mover = (moveEvent) => {
+      const largura = moveEvent.clientX;
+      aplicarLarguraSidebar(largura);
+     };
+     const soltar = () => {
+      document.body.classList.remove("is-resizing-sidebar");
+      handle.removeEventListener("pointermove", mover);
+      handle.removeEventListener("pointerup", soltar);
+      handle.removeEventListener("pointercancel", soltar);
+      try {
+       localStorage.setItem(CHAVE_SIDEBAR_LARGURA, String(Math.round(sidebar.getBoundingClientRect().width)));
+      } catch (erro) {}
+     };
+     handle.addEventListener("pointermove", mover);
+     handle.addEventListener("pointerup", soltar);
+     handle.addEventListener("pointercancel", soltar);
+    });
    }
 
    // --------------------------- persistência local ---------------------------
@@ -2098,7 +2304,28 @@
    // primeiro F5, mesmo com os dados intactos.
    var expandidos = new Set();
    var layoutAtual = "top";
+   var appThemeMode = "light";
    const LAYOUTS = ["top", "right", "bottom", "left"];
+
+   function aplicarTemaVisual() {
+    document.body.dataset.theme = appThemeMode;
+    const botao = document.getElementById("theme-mode-toggle");
+    if (botao) {
+     const escuro = appThemeMode === "dark";
+     botao.innerHTML = escuro
+      ? '<i class="fas fa-sun"></i> Light'
+      : '<i class="fas fa-moon"></i> Dark';
+     botao.title = escuro ? "Alternar para modo claro" : "Alternar para modo escuro";
+    }
+    enviarTemaAoSidebar();
+   }
+
+   function toggleThemeMode() {
+    appThemeMode = appThemeMode === "dark" ? "light" : "dark";
+    aplicarTemaVisual();
+    salvarVisual();
+    setStatus(appThemeMode === "dark" ? "Modo escuro ativado" : "Modo claro ativado");
+   }
 
    // Garante que o nó esteja visível ABRINDO o caminho até ele — sem fechar
    // nada. A versão anterior substituía a lista de nós abertos por esse
@@ -2137,6 +2364,7 @@
       JSON.stringify({
        tema: currentDesign,
        layout: layoutAtual,
+       modo: appThemeMode,
        expandidos: [...expandidos],
        selecionado: selectedNodeId,
        escopo: escopoId
@@ -2153,6 +2381,7 @@
     if (!visual) return;
     if (designs.some((d) => d.id === visual.tema)) currentDesign = visual.tema;
     if (LAYOUTS.includes(visual.layout)) layoutAtual = visual.layout;
+    if (visual.modo === "dark" || visual.modo === "light") appThemeMode = visual.modo;
     if (Array.isArray(visual.expandidos)) expandidos = new Set(visual.expandidos.map(String));
     if (visual.selecionado) selectedNodeId = String(visual.selecionado);
     if (visual.escopo) escopoId = String(visual.escopo);
@@ -2249,8 +2478,9 @@
    }
 
    function iniciar(linhas, mensagem) {
-    currentData = linhas;
-    aplicarVisualSalvo();
+   currentData = linhas;
+   aplicarVisualSalvo();
+    aplicarTemaVisual();
     if (selectedNodeId && !nodeExists(selectedNodeId)) selectedNodeId = null;
     buildDesignMenu();
     buildEscopoMenu();
@@ -2963,10 +3193,32 @@
 
    const CSV_COLUMNS = ["id", "parentId", "name", "lastName", "position", "type", "email", "department_name", "location_state", "image"];
 
-   function exportRows() {
+   function rowsParaExportar(parcial) {
+    if (!parcial) return currentData.slice();
+    const baseId = selectedNodeId && nodeExists(selectedNodeId) ? selectedNodeId : escopoId;
+    if (!baseId) return currentData.slice();
+    const ids = descendantsOf(baseId);
+    const rows = currentData
+     .filter((row) => ids.has(String(row.id)))
+     .map((row) => Object.assign({}, row));
+    rows.forEach((row) => {
+     if (String(row.id) === String(baseId)) row.parentId = "";
+    });
+    return rows;
+   }
+
+   function nomeExportacao(ext, parcial, rows) {
+    if (!parcial) return `organograma.${ext}`;
+    const raiz = rows.find((row) => !String(row.parentId || "").trim()) || rows[0];
+    const slug = semAcento(rotuloLegivel(raiz || {})).replace(/\s+/g, "-").slice(0, 48) || "parte";
+    return `organograma-${slug}.${ext}`;
+   }
+
+   function exportRows(rows) {
+    const lista = Array.isArray(rows) ? rows : currentData;
     return CSV_COLUMNS.map((column) => `"${column.replace(/"/g, '""')}"`).join(",")
      + "\n"
-     + currentData.map((row) =>
+     + lista.map((row) =>
       CSV_COLUMNS.map((column) => {
        const value = row[column] === undefined || row[column] === null ? "" : String(row[column]);
        return `"${value.replace(/"/g, '""')}"`;
@@ -2974,18 +3226,22 @@
      ).join("\n");
    }
 
-   function downloadCsv() {
+   function downloadCsv(parcial) {
     if (!currentData.length) return setStatus("Não há dados para exportar", true);
-    const blob = new Blob([exportRows()], { type: "text/csv;charset=utf-8" });
-    triggerDownload(blob, "organograma.csv");
-    setStatus(`Exportado organograma.csv (${currentData.length} registros)`);
+    const rows = rowsParaExportar(parcial);
+    const nome = nomeExportacao("csv", parcial, rows);
+    const blob = new Blob([exportRows(rows)], { type: "text/csv;charset=utf-8" });
+    triggerDownload(blob, nome);
+    setStatus(`Exportado ${nome} (${rows.length} registros)`);
    }
 
-   function downloadJson() {
+   function downloadJson(parcial) {
     if (!currentData.length) return setStatus("Não há dados para exportar", true);
-    const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: "application/json" });
-    triggerDownload(blob, "organograma.json");
-    setStatus(`Exportado organograma.json (${currentData.length} registros)`);
+    const rows = rowsParaExportar(parcial);
+    const nome = nomeExportacao("json", parcial, rows);
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+    triggerDownload(blob, nome);
+    setStatus(`Exportado ${nome} (${rows.length} registros)`);
    }
 
    function triggerDownload(blob, name) {
@@ -3053,8 +3309,8 @@
     if (event.key === "Enter" && event.target.tagName === "INPUT") salvarEditor();
    });
 
-   // A lib só expõe callback de clique simples, então o duplo clique é
-   // capturado por delegação no container.
+   // Atalho extra: depois de cada render os cards tambem recebem listener
+   // proprio, mas a delegacao cobre temas que recriam o SVG entre frames.
    document.querySelector(".chart-wrapper").addEventListener("dblclick", (event) => {
     const node = event.target.closest("g.node");
     if (!node) return;
@@ -3097,6 +3353,7 @@
     }, 150);
    }
 
+   iniciarResizeSidebar();
    window.addEventListener("resize", reajustarAoContainer);
 
    // O window.resize sozinho nao cobria o caso real: a webfont Inter termina de

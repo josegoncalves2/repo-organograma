@@ -300,3 +300,211 @@ body.with-sidebar .chart-wrapper {
    align-items: center;
    gap: 6px;
 }
+
+/* ===== Tree View responsivo + modo claro/escuro ===== */
+
+.tree-node {
+   min-width: 0;
+   padding-right: 8px;
+}
+
+.node-row {
+   position: relative;
+   padding-right: 22px;
+}
+
+.node-label {
+   max-width: 100%;
+}
+
+.node-actions {
+   position: absolute;
+   right: 0;
+   top: 50%;
+   transform: translateY(-50%);
+   max-width: calc(100% - 54px);
+   padding-left: 12px;
+   background: linear-gradient(90deg, rgba(248,250,252,0), #f8fafc 18px);
+}
+
+.tree-node:hover .node-row,
+.tree-node.active .node-row {
+   padding-right: 118px;
+}
+
+.tree-node:hover .node-actions,
+.tree-node.active .node-actions {
+   opacity: 1;
+}
+
+.node-actions button {
+   width: 20px;
+   height: 20px;
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   flex: 0 0 auto;
+}
+
+.sidebar.collapsed .sidebar__title,
+.sidebar.collapsed .sidebar__search,
+.sidebar.collapsed .sidebar__tree,
+.sidebar.collapsed .sidebar__footer {
+   display: none;
+}
+
+body[data-theme="dark"] {
+   background: #0f172a;
+   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .sidebar {
+   background: #0f172a;
+}
+
+body[data-theme="dark"] .sidebar__header,
+body[data-theme="dark"] .sidebar__footer {
+   background: rgba(15, 23, 42, 0.9);
+   border-color: #1e293b;
+}
+
+body[data-theme="dark"] .sidebar__title {
+   color: #93c5fd;
+}
+
+body[data-theme="dark"] .sidebar__toggle {
+   color: #94a3b8;
+}
+
+body[data-theme="dark"] .sidebar__toggle:hover,
+body[data-theme="dark"] .tree-node:hover {
+   background: #1e293b;
+   color: #bfdbfe;
+}
+
+body[data-theme="dark"] .sidebar__search {
+   border-color: #1e293b;
+}
+
+body[data-theme="dark"] .sidebar__search input {
+   background-color: #020617;
+   border-color: #334155;
+   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .sidebar__search input::placeholder {
+   color: #64748b;
+}
+
+body[data-theme="dark"] .tree-node {
+   color: #cbd5e1;
+}
+
+body[data-theme="dark"] .tree-node.active {
+   background: #2563eb;
+   color: #ffffff;
+}
+
+body[data-theme="dark"] .node-sub,
+body[data-theme="dark"] .sidebar__footer {
+   color: #94a3b8;
+}
+
+body[data-theme="dark"] .node-count {
+   background: #1e293b;
+   color: #94a3b8;
+}
+
+body[data-theme="dark"] .tree-node.active .node-count {
+   background: rgba(255,255,255,0.18);
+   color: #ffffff;
+}
+
+body[data-theme="dark"] .tree-children {
+   border-left-color: #334155;
+}
+
+body[data-theme="dark"] .node-actions {
+   background: linear-gradient(90deg, rgba(15,23,42,0), #0f172a 18px);
+}
+
+body[data-theme="dark"] .tree-node:hover .node-actions {
+   background: linear-gradient(90deg, rgba(30,41,59,0), #1e293b 18px);
+}
+
+body[data-theme="dark"] .tree-node.active .node-actions {
+   background: linear-gradient(90deg, rgba(37,99,235,0), #2563eb 18px);
+}
+
+.tree-node.active .node-actions {
+   background: linear-gradient(90deg, rgba(21,101,192,0), #1565C0 18px);
+}
+
+.tree-node.active .node-actions button {
+   color: #ffffff;
+   background: rgba(15, 23, 42, 0.18);
+   opacity: 1;
+}
+
+.tree-node.active .node-actions button:hover {
+   background: rgba(255, 255, 255, 0.24);
+   color: #ffffff;
+}
+
+.tree-node.active .tree-node__chevron {
+   color: #ffffff;
+}
+
+.tree-node.active .node-badge {
+   border-color: rgba(255, 255, 255, 0.65) !important;
+}
+
+body[data-theme="dark"] .tree-node.active .node-actions button {
+   background: rgba(2, 6, 23, 0.3);
+   color: #ffffff;
+}
+
+body[data-theme="dark"] .tree-node.active .node-actions button:hover {
+   background: rgba(255, 255, 255, 0.22);
+}
+
+@media (max-width: 420px) {
+   .sidebar__header {
+      padding: 12px;
+   }
+
+   .sidebar__search {
+      padding: 8px 10px;
+   }
+
+   .sidebar__tree {
+      padding-left: 4px;
+      padding-right: 4px;
+   }
+
+   .tree-node {
+      font-size: 12px;
+      padding-left: 6px;
+      padding-right: 6px;
+   }
+
+   .tree-children {
+      padding-left: 10px;
+      margin-left: 5px;
+   }
+
+   .node-sub {
+      display: none;
+   }
+
+   .tree-node:hover .node-row,
+   .tree-node.active .node-row {
+      padding-right: 94px;
+   }
+
+   .node-actions button {
+      width: 18px;
+      height: 18px;
+      padding: 1px;
+   }
+}

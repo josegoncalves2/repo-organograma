@@ -1,8 +1,4 @@
-# Docker Compose - bumbeishvili/org-chart demo
-networks:
-  net:
-    external: true
-    name: hub-login_net
+# Docker Compose - Organograma Municipal via WSL host network na porta 8085
 
 services:
   orgchart:
@@ -14,29 +10,17 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    ports:
-      - "8085:80"
-    networks:
-      - net
+    network_mode: host
+    environment:
+      PORT: 8085
     volumes:
-      # Os dados editados na tela vivem aqui, fora da imagem.
       - orgchart-dados:/dados
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/api/saude"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8085/api/saude"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=hub-login_net"
-      - "traefik.http.routers.orgchart.rule=Host(`orgchart.${DOMAIN}`)"
-      - "traefik.http.routers.orgchart.entrypoints=websecure"
-      - "traefik.http.routers.orgchart.tls.certresolver=letsencrypt"
-      - "traefik.http.services.orgchart.loadbalancer.server.port=80"
-      # Protegido pelo login do Authentik (qualquer usuário autenticado,
-      # sem restrição de grupo — ver blueprints/hub-login-base.yaml)
-      - "traefik.http.routers.orgchart.middlewares=authentik-auth@docker"
 
 volumes:
   orgchart-dados:

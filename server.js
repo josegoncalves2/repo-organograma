@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const RAIZ = __dirname;
 const DIR_DADOS = process.env.DADOS_DIR || "/dados";
 const ARQUIVO = path.join(DIR_DADOS, "organograma.json");
+const ARQUIVO_INICIAL = path.join(RAIZ, "dados", "organograma.json");
 const ANTERIOR = path.join(DIR_DADOS, "organograma.anterior.json");
 // 8085 e o default de quem roda `node server.js` na maquina. No container a
 // porta vem do ENV PORT=80 do Dockerfile, que casa com EXPOSE/healthcheck.
@@ -135,7 +136,15 @@ async function lerArquivo() {
     const texto = await fsp.readFile(ARQUIVO, "utf8");
     return { linhas: JSON.parse(texto), versao: versaoDe(texto) };
   } catch (erro) {
-    if (erro.code === "ENOENT") return null;
+    if (erro.code === "ENOENT") {
+      try {
+        const texto = await fsp.readFile(ARQUIVO_INICIAL, "utf8");
+        return { linhas: JSON.parse(texto), versao: versaoDe(texto), inicial: true };
+      } catch (fallback) {
+        if (fallback.code === "ENOENT") return null;
+        throw fallback;
+      }
+    }
     throw erro;
   }
 }

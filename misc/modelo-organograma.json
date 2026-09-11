@@ -1,0 +1,62 @@
+[
+ {
+  "id": "1",
+  "parentId": "",
+  "name": "",
+  "lastName": "",
+  "position": "PREFEITURA MUNICIPAL",
+  "type": "PREFEITURA",
+  "email": "",
+  "department_name": "PREFEITURA MUNICIPAL",
+  "location_state": "SP",
+  "image": ""
+ },
+ {
+  "id": "2",
+  "parentId": "1",
+  "name": "",
+  "lastName": "",
+  "position": "SECRETARIA MUNICIPAL EXEMPLO",
+  "type": "SECRETARIA",
+  "email": "secretaria@example.gov.br",
+  "department_name": "SECRETARIA MUNICIPAL EXEMPLO",
+  "location_state": "SP",
+  "image": ""
+ },
+ {
+  "id": "3",
+  "parentId": "2",
+  "name": "",
+  "lastName": "",
+  "position": "Divisao Administrativa",
+  "type": "DIVISAO",
+  "email": "",
+  "department_name": "SECRETARIA MUNICIPAL EXEMPLO",
+  "location_state": "SP",
+  "image": ""
+ },
+ {
+  "id": "4",
+  "parentId": "3",
+  "name": "",
+  "lastName": "",
+  "position": "Setor de Atendimento",
+  "type": "SETOR",
+  "email": "",
+  "department_name": "SECRETARIA MUNICIPAL EXEMPLO",
+  "location_state": "SP",
+  "image": ""
+ },
+ {
+  "id": "5",
+  "parentId": "2",
+  "name": "Nome",
+  "lastName": "do Secretario",
+  "position": "Secretario",
+  "type": "COLABORADOR",
+  "email": "secretario@example.gov.br",
+  "department_name": "SECRETARIA MUNICIPAL EXEMPLO",
+  "location_state": "SP",
+  "image": "fotos/5.jpg"
+ }
+]

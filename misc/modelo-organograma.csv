@@ -1,7 +1,6 @@
-id,parentId,name,lastName,position,email,department_name,location_state,image
-1,,Maria,Silva,Diretora Executiva,maria.silva@empresa.com,Diretoria,SP,
-2,1,Joao,Santos,Gerente de Engenharia,joao.santos@empresa.com,Engenharia,SP,
-3,1,Ana,Pereira,Gerente Comercial,ana.pereira@empresa.com,Comercial,RJ,
-4,2,Pedro,Oliveira,Engenheiro Senior,pedro.oliveira@empresa.com,Engenharia,SP,
-5,2,Carla,Rodrigues,Engenheira Plena,carla.rodrigues@empresa.com,Engenharia,SP,
-6,3,Lucas,Almeida,Analista Comercial,lucas.almeida@empresa.com,Comercial,RJ,
+id,parentId,name,lastName,position,type,email,department_name,location_state,image
+1,,,,PREFEITURA MUNICIPAL,PREFEITURA,,PREFEITURA MUNICIPAL,SP,
+2,1,,,SECRETARIA MUNICIPAL EXEMPLO,SECRETARIA,secretaria@example.gov.br,SECRETARIA MUNICIPAL EXEMPLO,SP,
+3,2,,,Divisao Administrativa,DIVISAO,,SECRETARIA MUNICIPAL EXEMPLO,SP,
+4,3,,,Setor de Atendimento,SETOR,,SECRETARIA MUNICIPAL EXEMPLO,SP,
+5,2,Nome,do Secretario,Secretario,COLABORADOR,secretario@example.gov.br,SECRETARIA MUNICIPAL EXEMPLO,SP,fotos/5.jpg

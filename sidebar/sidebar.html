@@ -35,6 +35,7 @@
     // Dados de exemplo — substitua por fetch real se necessário
     let treeData = [];
     let expandedIds = new Set();
+    let selectedId = null;
 
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('collapsed');
@@ -89,6 +90,7 @@
       const children = allNodes.filter(r => String(r.parentId || '').trim() === id);
       const hasChildren = children.length > 0;
       const isExpanded = expandedIds.has(id);
+      const isSelected = String(selectedId || '') === id;
 
       const nodeEl = document.createElement('div');
       nodeEl.className = 'tree-node';
@@ -98,6 +100,7 @@
       nodeEl.dataset.id = id;
       if (hasChildren) nodeEl.classList.add('has-children');
       if (isExpanded) nodeEl.classList.add('expanded');
+      if (isSelected) nodeEl.classList.add('active');
 
       // Badge de tipo (cor simplificada)
       const tipo = (node.type || '').toLowerCase();
@@ -153,12 +156,13 @@
     }
 
     function selectNode(id) {
+      selectedId = id === null || id === undefined ? null : String(id);
       document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
-      const el = document.querySelector('.tree-node[data-id="' + id + '"]');
+      const el = document.querySelector('.tree-node[data-id="' + selectedId + '"]');
       if (el) el.classList.add('active');
       // Comunicar com a página principal
       if (window.parent && window.parent.selectNode) {
-        window.parent.selectNode(id);
+        window.parent.selectNode(selectedId);
       }
     }
 
@@ -201,12 +205,24 @@
 
     // Expor dados para a página principal
     window.setSidebarData = function(data) {
+      const antes = new Set(expandedIds);
       treeData = data || [];
-      expandedIds = new Set();
+      const idsAtuais = new Set(treeData.map(r => String(r.id)));
+      expandedIds = new Set([...antes].filter(id => idsAtuais.has(id)));
       // Expandir raiz automaticamente
       const root = treeData.find(r => !String(r.parentId || '').trim());
-      if (root) expandedIds.add(String(root.id));
+      if (root && !expandedIds.size) expandedIds.add(String(root.id));
+      if (selectedId && !idsAtuais.has(String(selectedId))) selectedId = null;
       renderTree();
+    };
+
+    window.setSidebarSelection = function(id) {
+      selectedId = id === null || id === undefined ? null : String(id);
+      renderTree(document.getElementById('sidebar-search').value);
+    };
+
+    window.setSidebarTheme = function(mode) {
+      document.body.dataset.theme = mode === 'dark' ? 'dark' : 'light';
     };
 
     // Inicial

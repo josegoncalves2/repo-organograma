@@ -24,6 +24,7 @@
    border-right: 1px solid #e2e8f0;
    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
    overflow: hidden;
+   position: relative;
    transition: flex-basis 0.25s ease;
 }
 
@@ -36,6 +37,39 @@
    width: 100%;
    height: 100%;
    border: none;
+}
+
+.sidebar-resizer {
+   position: absolute;
+   top: 0;
+   right: 0;
+   bottom: 0;
+   width: 8px;
+   cursor: col-resize;
+   z-index: 5;
+   background: transparent;
+}
+
+.sidebar-resizer::after {
+   content: "";
+   position: absolute;
+   top: 0;
+   right: 2px;
+   width: 2px;
+   height: 100%;
+   background: transparent;
+   transition: background 0.15s ease;
+}
+
+.sidebar-resizer:hover::after,
+body.is-resizing-sidebar .sidebar-resizer::after {
+   background: #1565C0;
+}
+
+body.is-resizing-sidebar,
+body.is-resizing-sidebar * {
+   cursor: col-resize !important;
+   user-select: none !important;
 }
 
 /* ===== app.css - Organograma bumbeishvili/org-chart ===== */
@@ -642,4 +676,201 @@ body {
 
 .cores__voltar:hover {
    color: #334155;
+}
+
+/* ===== Responsividade do shell e modo claro/escuro ===== */
+
+.layout-with-sidebar > .sidebar {
+   flex-basis: clamp(300px, 24vw, 390px);
+}
+
+body[data-theme="dark"] {
+   background: #0b1120;
+   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .layout-with-sidebar > .sidebar {
+   background: #0f172a;
+   border-right-color: #1e293b;
+   box-shadow: 2px 0 18px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme="dark"] .sidebar-resizer:hover::after,
+body[data-theme="dark"].is-resizing-sidebar .sidebar-resizer::after {
+   background: #93c5fd;
+}
+
+body[data-theme="dark"] .toolbar {
+   background: rgba(15, 23, 42, 0.94);
+   border-bottom-color: #1e293b;
+   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme="dark"] .toolbar__brand,
+body[data-theme="dark"] .toolbar__brand i {
+   color: #93c5fd;
+}
+
+body[data-theme="dark"] .toolbar__group,
+body[data-theme="dark"] .theme-picker,
+body[data-theme="dark"] .escopo-picker {
+   background: #111827;
+   color: #cbd5e1;
+}
+
+body[data-theme="dark"] .toolbar__divider {
+   background: #334155;
+}
+
+body[data-theme="dark"] .btn {
+   color: #cbd5e1;
+}
+
+body[data-theme="dark"] .btn:hover {
+   background: #1e293b;
+   color: #93c5fd;
+}
+
+body[data-theme="dark"] .btn--primary {
+   background: #2563eb;
+   color: #ffffff;
+}
+
+body[data-theme="dark"] .btn--danger {
+   color: #fca5a5;
+}
+
+body[data-theme="dark"] .btn--danger:hover {
+   background: #3f1d24;
+   color: #fecaca;
+}
+
+body[data-theme="dark"] .theme-picker select,
+body[data-theme="dark"] .escopo-picker select,
+body[data-theme="dark"] .campo input,
+body[data-theme="dark"] .campo select {
+   background-color: #020617;
+   border-color: #334155;
+   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .chart-wrapper {
+   background: #0b1120;
+}
+
+body[data-theme="dark"] .chart-container {
+   background: #0f172a !important;
+   border-color: #1e293b;
+   box-shadow: 0 4px 26px rgba(0, 0, 0, 0.35);
+}
+
+body[data-theme="dark"] .status-bar,
+body[data-theme="dark"] .campo,
+body[data-theme="dark"] .cores__ajuda,
+body[data-theme="dark"] .legenda__item {
+   color: #94a3b8;
+}
+
+body[data-theme="dark"] .modal__box {
+   background: #111827;
+   color: #e5e7eb;
+   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+body[data-theme="dark"] .modal__head,
+body[data-theme="dark"] .modal__pe,
+body[data-theme="dark"] .cores__cabecalho,
+body[data-theme="dark"] .cores__linha {
+   border-color: #1f2937;
+}
+
+body[data-theme="dark"] .modal__head h2 {
+   color: #93c5fd;
+}
+
+body[data-theme="dark"] .modal__x {
+   color: #94a3b8;
+}
+
+body[data-theme="dark"] .modal__x:hover {
+   background: #1e293b;
+   color: #fecaca;
+}
+
+body[data-theme="dark"] .campo-foto img {
+   background: #020617;
+   border-color: #334155;
+}
+
+@media (max-width: 1100px) {
+   .layout-with-sidebar > .sidebar {
+      flex-basis: 300px;
+   }
+
+   .toolbar {
+      padding: 7px 10px;
+      gap: 6px;
+   }
+
+   .btn,
+   .file-upload__label {
+      padding-left: 9px;
+      padding-right: 9px;
+   }
+}
+
+@media (max-width: 760px) {
+   body {
+      height: 100vh;
+      overflow: hidden;
+   }
+
+   .layout-with-sidebar > .sidebar {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 250;
+      width: min(88vw, 360px);
+      flex-basis: min(88vw, 360px);
+   }
+
+   .layout-with-sidebar > .sidebar.collapsed {
+      width: 48px;
+      flex-basis: 48px;
+   }
+
+   .sidebar-resizer {
+      display: none;
+   }
+
+   .layout-with-sidebar > .main-content {
+      margin-left: 48px;
+   }
+
+   .toolbar__brand {
+      width: auto;
+      margin-right: 4px;
+   }
+
+   .escopo-picker {
+      max-width: calc(100vw - 74px);
+   }
+
+   .escopo-picker select {
+      min-width: 0;
+      max-width: 48vw;
+   }
+
+   .theme-picker select {
+      max-width: 44vw;
+   }
+
+   .chart-wrapper {
+      margin: 10px 0 12px;
+      padding: 0 10px;
+   }
+
+   .status-bar {
+      padding-left: 14px;
+      padding-right: 14px;
+   }
 }
