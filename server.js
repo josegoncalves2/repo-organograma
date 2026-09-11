@@ -12,11 +12,16 @@ const crypto = require("crypto");
 
 const RAIZ = __dirname;
 const DIR_DADOS = process.env.DADOS_DIR || "/dados";
+const HOST = process.env.HOST || "0.0.0.0";
+const EXECUCAO_PERMITIDA = process.env.DOCKER === "1" || process.env.NODE_ENV === "docker";
+if (!EXECUCAO_PERMITIDA) {
+  console.error("Execução bloqueada: rode via Docker Compose; não é permitida a execução direta do Node fora do container.");
+  process.exit(1);
+}
 const ARQUIVO = path.join(DIR_DADOS, "organograma.json");
 const ARQUIVO_INICIAL = path.join(RAIZ, "dados", "organograma.json");
 const ANTERIOR = path.join(DIR_DADOS, "organograma.anterior.json");
-// 8085 e o default de quem roda `node server.js` na maquina. No container a
-// porta vem do ENV PORT=80 do Dockerfile, que casa com EXPOSE/healthcheck.
+// Porta usada pelo container; o compose mapeia 8085->80 para o host.
 const PORTA = Number(process.env.PORT || 8085);
 const LIMITE_BYTES = 25 * 1024 * 1024;
 
@@ -335,4 +340,4 @@ http
     }
     estatico(req, res, rota);
   })
-  .listen(PORTA, () => console.log(`organograma em :${PORTA} — dados em ${ARQUIVO}`));
+  .listen(PORTA, HOST, () => console.log(`organograma em ${HOST}:${PORTA} — dados em ${ARQUIVO}`));

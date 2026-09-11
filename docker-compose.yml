@@ -1,4 +1,4 @@
-# Docker Compose - Organograma Municipal via WSL host network na porta 8085
+# Docker Compose - Organograma Municipal via localhost na porta 8085
 
 services:
   orgchart:
@@ -10,9 +10,12 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    network_mode: host
     environment:
-      PORT: 8085
+      PORT: "8085"
+      DOCKER: "1"
+      HOST: "0.0.0.0"
+    ports:
+      - "127.0.0.1:8085:8085"
     volumes:
       - orgchart-dados:/dados
     healthcheck:

@@ -490,6 +490,74 @@
      .toUpperCase();
    }
 
+   function valorCampo(row, ...chaves) {
+    if (!row || typeof row !== "object") return "";
+    const alternativos = [];
+    for (const chave of chaves) {
+     if (!chave) continue;
+     const base = String(chave);
+     alternativos.push(base);
+     alternativos.push(base.toLowerCase());
+     alternativos.push(base.replace(/[^a-zA-Z0-9]/g, ""));
+     alternativos.push(base.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase());
+     alternativos.push(base.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase());
+    }
+    for (const chave of alternativos) {
+     if (!chave) continue;
+     const valor = row[chave];
+     if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+      return String(valor).trim();
+     }
+    }
+    return "";
+   }
+
+   function temFoto(row) {
+    const imagem = valorCampo(
+     row,
+     "image",
+     "imageUrl",
+     "foto",
+     "photo",
+     "avatar",
+     "imagem",
+     "fotoUrl",
+     "photoUrl",
+     "image_url",
+     "photo_url"
+    );
+    return Boolean(String(imagem || "").trim());
+   }
+
+   function normalizarLinha(row) {
+    if (!row || typeof row !== "object") return row;
+    const linha = { ...row };
+    const nome = valorCampo(linha, "name", "nome", "fullName", "nomeCompleto", "full_name", "nome_completo", "employeeName", "nomeFuncionario");
+    const sobrenome = valorCampo(linha, "lastName", "sobrenome", "surname", "ultimoNome", "last_name", "sobrenome_completo", "lastNameCompleto");
+    const cargo = valorCampo(linha, "position", "cargo", "titulo", "title", "cargoAtual", "positionName");
+    const tipo = valorCampo(linha, "type", "tipo");
+    const email = valorCampo(linha, "email", "mail", "emailCorporativo", "email_corporativo");
+    const departamento = valorCampo(linha, "department_name", "department", "departamento", "departmentName", "department_name", "departamentoNome");
+    const localizacao = valorCampo(linha, "location_state", "location", "estado", "locationState", "state", "location_state");
+    const imagem = valorCampo(linha, "image", "imageUrl", "foto", "photo", "avatar", "imagem", "image_url", "photo_url", "fotoUrl", "photoUrl");
+    const parentId = valorCampo(linha, "parentId", "parent_id", "parentid", "paiId", "parentIdColaborador");
+    const id = valorCampo(linha, "id", "ID", "idColaborador", "employeeId");
+    if (nome) linha.name = nome;
+    if (sobrenome) linha.lastName = sobrenome;
+    if (cargo) linha.position = cargo;
+    if (tipo) linha.type = tipo;
+    if (email) linha.email = email;
+    if (departamento) linha.department_name = departamento;
+    if (localizacao) linha.location_state = localizacao;
+    if (imagem) {
+      linha.image = imagem;
+      linha.imageUrl = imagem;
+    }
+    if (parentId) linha.parentId = parentId;
+    if (id) linha.id = id;
+    return linha;
+   }
+
    // Classifica UMA linha. Ordem de precedencia:
    //   1. coluna `type` explicita, quando o arquivo traz
    //   2. nome de pessoa preenchido -> COLABORADOR
@@ -497,13 +565,13 @@
    // Nao ha inferencia: se a palavra nao esta na tabela, cai em UNIDADE
    // generica e o rotulo original e preservado no selo.
    function classificar(row) {
-    const explicito = normalizar(row.type);
+    const explicito = normalizar(valorCampo(row, "type", "tipo"));
     if (explicito && TIPOS[explicito]) return explicito;
 
-    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
+    const pessoa = nomeCompleto(row);
     if (pessoa) return "COLABORADOR";
 
-    const primeira = normalizar(row.position).split(/[\s,/-]+/)[0];
+    const primeira = normalizar(valorCampo(row, "position", "cargo", "titulo", "title")).split(/[\s,/-]+/)[0];
     if (primeira && TIPOS[primeira]) return primeira;
 
     return "";
@@ -566,8 +634,8 @@
    }
 
    function rotuloLegivel(row) {
-    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
-    return pessoa || String(row.position || "").trim() || `#${row.id}`;
+    const pessoa = nomeCompleto(row);
+    return pessoa || String(valorCampo(row, "position", "cargo", "titulo", "title") || "").trim() || `#${row.id}`;
    }
 
    var designs = [
@@ -1192,8 +1260,10 @@
 
    function resolveImageUrl(src) {
     const texto = String(src ?? "").trim().replace(/\\/g, "/");
-    if (!texto || /^data:|^https?:|^\/\//i.test(texto) || texto.startsWith("/")) return texto;
-    return `/${texto.replace(/^\.\/?/, "")}`;
+    if (!texto) return "";
+    if (/^data:|^https?:|^\/\//i.test(texto) || texto.startsWith("/")) return texto;
+    const normalizado = texto.replace(/^\.\//, "").replace(/^\//, "");
+    return `/${normalizado}`;
    }
 
    // rank 0 (PREFEITURA) e o maior; rank 5 (COLABORADOR) o menor.
@@ -1493,6 +1563,8 @@
 
    function buildDesignMenu() {
     const select = document.getElementById("theme-select");
+    if (!select) return;
+    select.innerHTML = "";
     designs.forEach((design, i) => {
      const option = document.createElement("option");
      option.value = design.id;
@@ -1805,7 +1877,9 @@
    }
 
    function nomeCompleto(row) {
-    return `${row.name || ""} ${row.lastName || ""}`.trim();
+    const nome = valorCampo(row, "name", "nome", "fullName", "nomeCompleto", "employeeName");
+    const sobrenome = valorCampo(row, "lastName", "sobrenome", "surname", "ultimoNome");
+    return [nome, sobrenome].filter(Boolean).join(" ").trim();
    }
 
    const TIPOS_SEM_GESTOR_EMBUTIDO = new Set(["PREFEITURA", "COLABORADOR", "COMISSIONADOS"]);
@@ -1987,45 +2061,49 @@
    // própria árvore já mostra — e truncado ("SECRETARIA MUNICIPAL DE ASSISTÊ…")
    // não informa nada. O subtítulo fica reservado para cargo de pessoa.
    function toChartRow(row) {
-    const titular = titularDe(row);
-    const pessoa = `${row.name || ""} ${row.lastName || ""}`.trim();
-    const tipo = tipoDe(row);
-    return Object.assign({}, row, {
-     id: row.id,
-     parentId: row.parentId,
+    const linha = normalizarLinha(row);
+    const titular = titularDe(linha);
+    const pessoa = nomeCompleto(linha);
+    const cargo = valorCampo(linha, "position", "cargo", "titulo", "title");
+    const tipo = tipoDe(linha);
+    const imagem = valorCampo(linha, "image", "imageUrl", "foto", "photo", "avatar", "imagem") || "";
+    return Object.assign({}, linha, {
+     id: linha.id,
+     parentId: linha.parentId,
      // Caixa de unidade: o nome e o rotulo dela e a segunda linha e quem
      // responde por ela. Caixa de pessoa sem unidade propria: nome e cargo.
-     name: pessoa || row.position || `#${row.id}`,
+     name: pessoa || cargo || `#${linha.id}`,
      // 54 unidades tem mais de um ocupante com o mesmo rotulo (dois nomes no
      // mesmo setor). O primeiro encabeca a caixa da unidade; repetir o nome
      // dela no subtitulo dos outros so duplica o que a arvore ja mostra.
      positionName: pessoa
-      ? repeteRotuloDoPai(row)
+      ? repeteRotuloDoPai(linha)
         ? ""
-        : row.position || ""
+        : cargo || ""
       : titular
-      ? `${cargoGestorDe(row, titular)}: ${nomeCompleto(titular)}`
+      ? `${cargoGestorDe(linha, titular)}: ${nomeCompleto(titular)}`
       : "",
      // Os cards originais leem `position` direto; sem espelhar aqui, a unidade
      // aparece com o proprio nome repetido na segunda linha.
-     _etiqueta: etiquetaDoNo(row),
+     _etiqueta: etiquetaDoNo(linha),
      _souUnidade: !pessoa,
      _tipo: tipo,
-     _tipoNome: classificar(row) || "UNIDADE",
+     _tipoNome: classificar(linha) || "UNIDADE",
      position: pessoa
-      ? repeteRotuloDoPai(row)
+      ? repeteRotuloDoPai(linha)
         ? ""
-        : row.position || ""
+        : cargo || ""
       : titular
-      ? `${cargoGestorDe(row, titular)}: ${nomeCompleto(titular)}`
+      ? `${cargoGestorDe(linha, titular)}: ${nomeCompleto(titular)}`
       : "",
-     imageUrl: (titular ? titular.image : row.image) || "",
+     image: imagem,
+     imageUrl: imagem,
      _gestorId: titular ? titular.id : "",
      _gestorNome: titular ? nomeCompleto(titular) : "",
-     _gestorCargo: titular ? cargoGestorDe(row, titular) : "",
-     area: row.department_name || "",
-     office: row.location_state || row.department_name || "",
-     email: (titular ? titular.email : row.email) || ""
+     _gestorCargo: titular ? cargoGestorDe(linha, titular) : "",
+     area: valorCampo(linha, "department_name", "department", "departamento", "departmentName") || "",
+     office: valorCampo(linha, "location_state", "location", "estado", "locationState") || valorCampo(linha, "department_name", "department", "departamento", "departmentName") || "",
+     email: valorCampo((titular || linha), "email", "mail", "emailCorporativo") || ""
     });
    }
 
@@ -2473,7 +2551,8 @@
    }
 
    function marcarAlterado(alterado) {
-    document.getElementById("btn-descartar").hidden = !alterado;
+    const btn = document.getElementById("btn-descartar");
+    if (btn) btn.hidden = !alterado;
    }
 
    function iniciar(linhas, mensagem) {
@@ -2722,11 +2801,19 @@
     if (!row) return setStatus("Colaborador não encontrado", true);
 
     editandoId = String(alvo);
-    CAMPOS_EDITAVEIS.forEach((campo) => {
-     document.getElementById("ed-" + campo).value = row[campo] || "";
+    const campos = {
+      name: row.name || "",
+      lastName: row.lastName || "",
+      position: row.position || "",
+      email: row.email || "",
+      department_name: row.department_name || "",
+      image: row.image || row.imageUrl || ""
+    };
+    Object.entries(campos).forEach(([campo, valor]) => {
+     document.getElementById("ed-" + campo).value = valor;
     });
     montarSelectTipo(row);
-    atualizarPreview(row.image);
+    atualizarPreview(campos.image);
     montarSelectChefe(editandoId, row.parentId);
     document.getElementById("ed-erro").textContent = "";
     document.getElementById("editor-titulo").textContent =
@@ -2955,6 +3042,11 @@
     Object.assign(row, valores);
     row.type = novoTipo;
     if (mudouChefe) row.parentId = novoChefe;
+    // Sincroniza image/imageUrl para o render dos cards.
+    if (valores.image) {
+     row.image = valores.image;
+     row.imageUrl = valores.image;
+    }
 
     fecharEditor();
     selectNode(row.id);
@@ -3167,12 +3259,12 @@
        // sobrenome — só o rótulo em `position`. Exigir nome de pessoa
        // descartava essas linhas, inclusive a raiz, e o arquivo inteiro era
        // recusado por "não tem nó raiz".
-       const validRows = rows.filter((row) => {
-        const id = String(row.id || "").trim();
+       const validRows = rows.map(normalizarLinha).filter((row) => {
+        const id = String(valorCampo(row, "id", "ID") || "").trim();
         const rotulo =
-         String(row.name || "").trim() ||
-         String(row.lastName || "").trim() ||
-         String(row.position || "").trim();
+         String(valorCampo(row, "name", "nome", "fullName", "nomeCompleto", "employeeName") || "").trim() ||
+         String(valorCampo(row, "lastName", "sobrenome", "surname", "ultimoNome") || "").trim() ||
+         String(valorCampo(row, "position", "cargo", "titulo", "title") || "").trim();
         return id && rotulo;
        });
        if (!validRows.length) {
@@ -3276,78 +3368,107 @@
     }
    }
 
-   document.getElementById("ed-arquivo").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file || !editandoId) return;
-    setStatus("Enviando foto…");
-    try {
-     const caminho = await enviarFoto(editandoId, file);
-     document.getElementById("ed-image").value = caminho;
-     atualizarPreview(caminho);
-     setStatus("Foto enviada — clique em Salvar para aplicar");
-    } catch (erro) {
-     setStatus(`Não foi possível enviar a foto: ${erro.message}`, true);
-    }
-   });
+   const editorEl = document.getElementById("editor");
+   const fotoInput = document.getElementById("ed-arquivo");
+   const imagemInput = document.getElementById("ed-image");
+   const coresEl = document.getElementById("cores");
+   const csvInput = document.getElementById("csv-input");
+   const escopoSelect = document.getElementById("escopo-select");
+   const themeSelect = document.getElementById("theme-select");
+   const chartWrapper = document.querySelector(".chart-wrapper");
 
-   document.getElementById("ed-image").addEventListener("input", (event) => {
-    atualizarPreview(event.target.value.trim());
-   });
+   if (fotoInput) {
+    fotoInput.addEventListener("change", async (event) => {
+     const file = event.target.files[0];
+     event.target.value = "";
+     if (!file || !editandoId) return;
+     setStatus("Enviando foto…");
+     try {
+      const caminho = await enviarFoto(editandoId, file);
+      const inputFoto = document.getElementById("ed-image");
+      if (inputFoto) inputFoto.value = caminho;
+      atualizarPreview(caminho);
+      setStatus("Foto enviada — clique em Salvar para aplicar");
+     } catch (erro) {
+      setStatus(`Não foi possível enviar a foto: ${erro.message}`, true);
+     }
+    });
+   }
+
+   if (imagemInput) {
+    imagemInput.addEventListener("input", (event) => {
+     atualizarPreview(event.target.value.trim());
+    });
+   }
 
    // Sem isso o aviso de campo obrigatório fica na tela depois de corrigido.
-   document.querySelectorAll("#editor input, #editor select").forEach((campo) => {
-    campo.addEventListener("input", () => {
-     document.getElementById("ed-erro").textContent = "";
+   if (editorEl) {
+    editorEl.querySelectorAll("input, select").forEach((campo) => {
+     campo.addEventListener("input", () => {
+      const erro = document.getElementById("ed-erro");
+      if (erro) erro.textContent = "";
+     });
     });
-   });
+   }
 
-   document.getElementById("editor").addEventListener("click", (event) => {
-    if (event.target.id === "editor") fecharEditor();
-   });
+   if (editorEl) {
+    editorEl.addEventListener("click", (event) => {
+     if (event.target.id === "editor") fecharEditor();
+    });
+   }
 
-   document.getElementById("cores").addEventListener("click", (event) => {
-    if (event.target.id === "cores") fecharCores();
+   if (coresEl) {
+    coresEl.addEventListener("click", (event) => {
+     if (event.target.id === "cores") fecharCores();
+    });
+   }
+
+   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && coresEl && !coresEl.hidden) fecharCores();
    });
 
    document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !document.getElementById("cores").hidden) fecharCores();
-   });
-
-   document.addEventListener("keydown", (event) => {
-    if (document.getElementById("editor").hidden) return;
+    if (!editorEl || editorEl.hidden) return;
     if (event.key === "Escape") fecharEditor();
     if (event.key === "Enter" && event.target.tagName === "INPUT") salvarEditor();
    });
 
    // Atalho extra: depois de cada render os cards tambem recebem listener
    // proprio, mas a delegacao cobre temas que recriam o SVG entre frames.
-   document.querySelector(".chart-wrapper").addEventListener("dblclick", (event) => {
-    const node = event.target.closest("g.node");
-    if (!node) return;
-    const id = nodeIdFromElement(node);
-    if (id === null) return;
-    selectNode(id);
-    abrirEditor(id);
-   });
+   if (chartWrapper) {
+    chartWrapper.addEventListener("dblclick", (event) => {
+     const node = event.target.closest("g.node");
+     if (!node) return;
+     const id = nodeIdFromElement(node);
+     if (id === null) return;
+     selectNode(id);
+     abrirEditor(id);
+    });
+   }
 
-   document.getElementById("csv-input").addEventListener("change", async (event) => {
-    const arquivos = [...event.target.files];
-    event.target.value = "";
-    await carregarArquivos(arquivos);
-   });
+   if (csvInput) {
+    csvInput.addEventListener("change", async (event) => {
+     const arquivos = [...event.target.files];
+     event.target.value = "";
+     await carregarArquivos(arquivos);
+    });
+   }
 
-   document.getElementById("escopo-select").addEventListener("change", (event) => {
-    aplicarEscopo(event.target.value);
-   });
+   if (escopoSelect) {
+    escopoSelect.addEventListener("change", (event) => {
+     aplicarEscopo(event.target.value);
+    });
+   }
 
-   document.getElementById("theme-select").addEventListener("change", (event) => {
-    currentDesign = event.target.value;
-    renderDesign();
-    afterRender();
-    salvarVisual();
-    setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
-   });
+   if (themeSelect) {
+    themeSelect.addEventListener("change", (event) => {
+     currentDesign = event.target.value;
+     renderDesign();
+     afterRender();
+     salvarVisual();
+     setStatus(`${event.target.selectedOptions[0].textContent} aplicado`);
+    });
+   }
 
    let resizeTimer;
    function reajustarAoContainer() {

@@ -20,17 +20,19 @@ COPY dados/ ./dados/
 
 # Volume: é aqui que organograma.json sobrevive a rebuilds do container.
 ENV DADOS_DIR=/dados
-# Explícito de propósito: EXPOSE, healthcheck, o mapeamento do compose e o
-# label do traefik falam todos em 80. Deixar a porta no default do server.js
-# fazia o container escutar noutra porta e nunca ficar healthy.
-ENV PORT=80
+ENV DOCKER=1
+# O serviço escuta apenas dentro do namespace do container; a exposição para o
+# host fica restrita ao mapeamento do Docker Compose, sem host networking.
+ENV HOST=0.0.0.0
+# A aplicação atende em 8085 e o compose mapeia essa porta para o host.
+ENV PORT=8085
 RUN mkdir -p /dados && chown -R node:node /dados /app
 VOLUME ["/dados"]
 
 USER node
-EXPOSE 80
+EXPOSE 8085
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-   CMD wget --quiet --tries=1 --spider http://localhost/api/saude || exit 1
+   CMD wget --quiet --tries=1 --spider http://localhost:8085/api/saude || exit 1
 
 CMD ["node", "server.js"]
