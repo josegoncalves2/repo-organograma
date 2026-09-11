@@ -2801,19 +2801,16 @@
     if (!row) return setStatus("Colaborador não encontrado", true);
 
     editandoId = String(alvo);
-    const campos = {
-      name: row.name || "",
-      lastName: row.lastName || "",
-      position: row.position || "",
-      email: row.email || "",
-      department_name: row.department_name || "",
-      image: row.image || row.imageUrl || ""
-    };
-    Object.entries(campos).forEach(([campo, valor]) => {
-     document.getElementById("ed-" + campo).value = valor;
-    });
+    // Populate fields directly from the row data
+    document.getElementById("ed-name").value = row.name || "";
+    document.getElementById("ed-lastName").value = row.lastName || "";
+    document.getElementById("ed-position").value = row.position || "";
+    document.getElementById("ed-email").value = row.email || "";
+    document.getElementById("ed-department_name").value = row.department_name || "";
+    document.getElementById("ed-image").value = row.image || row.imageUrl || "";
+    
     montarSelectTipo(row);
-    atualizarPreview(campos.image);
+    atualizarPreview(row.image || row.imageUrl || "");
     montarSelectChefe(editandoId, row.parentId);
     document.getElementById("ed-erro").textContent = "";
     document.getElementById("editor-titulo").textContent =
@@ -3046,6 +3043,10 @@
     if (valores.image) {
      row.image = valores.image;
      row.imageUrl = valores.image;
+    } else {
+     // Clear image fields if empty
+     row.image = "";
+     row.imageUrl = "";
     }
 
     fecharEditor();
