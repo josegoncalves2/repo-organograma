@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organograma • Visualização</title>
+  <style>
+   :root {
+     --bg: #081321;
+     --panel: rgba(15, 23, 42, 0.92);
+     --panel-soft: rgba(15, 23, 42, 0.72);
+     --text: #e2e8f0;
+     --muted: #94a3b8;
+     --accent: #38bdf8;
+   }
+
+   * { box-sizing: border-box; }
+
+   html, body {
+     margin: 0;
+     width: 100%;
+     height: 100%;
+     background: radial-gradient(circle at top, #0f172a 0%, #020817 52%, #01060d 100%);
+     color: var(--text);
+     font-family: Inter, "Segoe UI", sans-serif;
+     overflow: hidden;
+   }
+
+   body {
+     display: flex;
+     flex-direction: column;
+   }
+
+   .kiosk-header {
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     gap: 16px;
+     padding: 12px 18px 10px;
+     background: rgba(15, 23, 42, 0.7);
+     border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+     backdrop-filter: blur(6px);
+     z-index: 2;
+   }
+
+   .kiosk-header__brand {
+     display: flex;
+     align-items: center;
+     gap: 10px;
+     font-size: 16px;
+     font-weight: 700;
+     letter-spacing: 0.04em;
+     text-transform: uppercase;
+   }
+
+   .kiosk-header__brand::before {
+     content: "";
+     width: 10px;
+     height: 10px;
+     border-radius: 50%;
+     background: linear-gradient(135deg, #38bdf8, #22c55e);
+     box-shadow: 0 0 16px rgba(56, 189, 248, 0.7);
+   }
+
+   .kiosk-header__meta {
+     color: var(--muted);
+     font-size: 12px;
+     letter-spacing: 0.06em;
+     text-transform: uppercase;
+   }
+
+   .kiosk-shell {
+     position: relative;
+     flex: 1;
+     min-height: 0;
+     padding: 0;
+     background: rgba(2, 6, 15, 0.2);
+   }
+
+   .kiosk-frame {
+     width: 100%;
+     height: 100%;
+     border: 0;
+     background: #f6f7fb;
+   }
+
+   .kiosk-overlay {
+     position: absolute;
+     inset: 0;
+     pointer-events: none;
+     background: linear-gradient(180deg, rgba(15,23,42,0.07), rgba(15,23,42,0.18));
+   }
+  </style>
+ </head>
+ <body>
+  <header class="kiosk-header">
+   <div class="kiosk-header__brand">Organograma</div>
+   <div class="kiosk-header__meta">Visualização pública</div>
+  </header>
+
+  <div class="kiosk-shell">
+   <iframe class="kiosk-frame" id="kiosk-frame" title="Organograma em visualização" src="/?view=1"></iframe>
+   <div class="kiosk-overlay" aria-hidden="true"></div>
+  </div>
+
+  <script>
+   const frame = document.getElementById('kiosk-frame');
+
+   function desativarAcoes() {
+     try {
+       const doc = frame.contentDocument;
+       if (!doc) return;
+
+       const esconder = [
+         '.toolbar',
+         '.sidebar',
+         '#sidebar',
+         '#editor',
+         '#cores',
+         '.status-bar',
+         '#btn-descartar',
+         '.drop-overlay',
+         '.modal',
+         'button',
+         'input',
+         'select',
+         'label.file-upload',
+         '.toolbar__group',
+         '.toolbar__divider'
+       ];
+
+       esconder.forEach((seletor) => {
+         doc.querySelectorAll(seletor).forEach((el) => {
+           if (el && el.style) {
+             el.style.display = 'none';
+             el.style.visibility = 'hidden';
+             el.setAttribute('aria-hidden', 'true');
+           }
+         });
+       });
+
+       const docBody = doc.body;
+       if (docBody) {
+         docBody.classList.add('kiosk-mode');
+         docBody.style.overflow = 'hidden';
+       }
+
+       const rootMain = doc.querySelector('.main-content');
+       if (rootMain) {
+         rootMain.style.marginLeft = '0';
+         rootMain.style.width = '100%';
+         rootMain.style.maxWidth = '100%';
+       }
+
+       const chartWrap = doc.querySelector('.chart-wrapper');
+       if (chartWrap) {
+         chartWrap.style.height = '100vh';
+         chartWrap.style.minHeight = '100vh';
+       }
+
+       const script = doc.createElement('script');
+       script.textContent = `
+         window.abrirEditor = function(){ return false; };
+         window.addSampleNode = function(){ return false; };
+         window.removeSampleNode = function(){ return false; };
+         window.salvarEditor = function(){ return false; };
+         window.limparFoto = function(){ return false; };
+         window.downloadCsv = function(){ return false; };
+         window.downloadJson = function(){ return false; };
+         window.descartarLocal = function(){ return false; };
+         document.addEventListener('contextmenu', (event) => event.preventDefault(), { passive: false });
+         document.body.addEventListener('keydown', (event) => {
+           if (event.key === 'Escape') event.stopPropagation();
+         });
+       `;
+       doc.body.appendChild(script);
+     } catch (erro) {
+       console.warn('kiosk view:', erro);
+     }
+   }
+
+   frame.addEventListener('load', () => {
+     setTimeout(desativarAcoes, 350);
+     setTimeout(desativarAcoes, 1200);
+   });
+  </script>
+ </body>
+</html>

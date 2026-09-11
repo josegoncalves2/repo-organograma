@@ -15,6 +15,7 @@ COPY src/ ./src/
 COPY build/ ./build/
 COPY misc/ ./misc/
 COPY sidebar/ ./sidebar/
+COPY view/ ./view/
 COPY dados/ ./dados/
 
 # Volume: é aqui que organograma.json sobrevive a rebuilds do container.

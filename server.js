@@ -278,16 +278,33 @@ async function api(req, res, rota) {
 }
 
 function estatico(req, res, rota) {
-  const relativo = rota === "/" ? "tree.html" : decodeURIComponent(rota).replace(/^\/+/, "");
-  // As fotos enviadas vivem no volume, não na imagem do container. O resolve
-  // normaliza as barras: comparar com a string crua de DADOS_DIR recusava tudo
-  // com 403 quando o caminho vinha com "/" e o sistema usa "\\".
-  const base = path.resolve(relativo.startsWith("fotos/") ? DIR_DADOS : RAIZ);
-  const alvo = path.resolve(base, relativo);
-  if (alvo !== base && !alvo.startsWith(base + path.sep)) {
+  const direta = rota === "/" ? "tree.html" : decodeURIComponent(rota).replace(/^\/+/, "");
+  const normalizada = direta || "tree.html";
+
+  if (rota === "/view" || rota === "/view/") {
+    const alvo = path.resolve(RAIZ, "view", "index.html");
+    fs.stat(alvo, (erro, info) => {
+      if (erro || !info.isFile()) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }).end("não encontrado");
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": TIPOS[path.extname(alvo).toLowerCase()] || "application/octet-stream",
+        "Content-Length": info.size,
+        "Cache-Control": "no-cache"
+      });
+      fs.createReadStream(alvo).pipe(res);
+    });
+    return;
+  }
+
+  const base = path.resolve(normalizada.startsWith("fotos/") ? DIR_DADOS : RAIZ);
+  const alvo = path.resolve(base, normalizada);
+  if (alvo !== base && !alvo.startsWith(base + path.sep) && !alvo.startsWith(RAIZ + path.sep)) {
     res.writeHead(403).end("proibido");
     return;
   }
+
   fs.stat(alvo, (erro, info) => {
     if (erro || !info.isFile()) {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }).end("não encontrado");
