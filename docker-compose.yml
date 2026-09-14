@@ -15,7 +15,10 @@ services:
       DOCKER: "1"
       HOST: "0.0.0.0"
     ports:
-      - "127.0.0.1:8085:8085"
+      # Exposto na rede local a pedido. Atenção: a API tem POST e DELETE sem
+      # autenticação — qualquer um que alcance esta porta pode reescrever ou
+      # apagar o organograma.
+      - "8085:8085"
     volumes:
       - orgchart-dados:/dados
     healthcheck:

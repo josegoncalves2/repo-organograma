@@ -300,12 +300,12 @@
      </label>
 
      <label class="campo">
-      <span>Nome <b>*</b></span>
+      <span id="ed-rotulo-name">Nome <b>*</b></span>
       <input type="text" id="ed-name" />
      </label>
 
      <label class="campo">
-      <span>Sobrenome</span>
+      <span id="ed-rotulo-lastName">Sobrenome</span>
       <input type="text" id="ed-lastName" />
      </label>
 
@@ -314,13 +314,18 @@
       <input type="text" id="ed-position" />
      </label>
 
+     <label class="campo campo--largo" id="ed-campo-titular-position" style="display:none">
+      <span>Cargo do titular</span>
+      <input type="text" id="ed-titular-position" placeholder="ex.: Prefeito, Secretário, Diretor" />
+     </label>
+
      <label class="campo campo--largo">
       <span>Tipo <b>*</b></span>
       <select id="ed-type"></select>
      </label>
 
      <label class="campo">
-      <span>E-mail</span>
+      <span id="ed-rotulo-email">E-mail</span>
       <input type="text" id="ed-email" />
      </label>
 
@@ -2815,6 +2820,10 @@
    // ----------------------------- editor de card -----------------------------
 
    var editandoId = null;
+   // Card de unidade com gestor absorvido mostra o nome da PESSOA (outra
+   // linha), mas o duplo clique abre a unidade — que nao tem nome. Guardamos
+   // o id do titular para o editor ler e gravar onde o card realmente le.
+   var editandoTitularId = null;
    const CAMPOS_EDITAVEIS = ["name", "lastName", "position", "email", "department_name", "image"];
 
    function abrirEditor(id) {
@@ -2825,14 +2834,34 @@
     if (!row) return setStatus("Colaborador não encontrado", true);
 
     editandoId = String(alvo);
-    // Populate fields from row data, using valorCampo for alias support
-    document.getElementById("ed-name").value = valorCampo(row, "name", "nome", "fullName", "nomeCompleto", "full_name", "nome_completo", "employeeName", "nomeFuncionario") || "";
-    document.getElementById("ed-lastName").value = valorCampo(row, "lastName", "sobrenome", "surname", "ultimoNome", "last_name", "sobrenome_completo", "lastNameCompleto") || "";
+    // O card desta unidade exibe o nome do gestor absorvido; sem isto o
+    // editor abria com Nome e Sobrenome em branco.
+    const titularEditado = titularDe(row);
+    editandoTitularId = titularEditado ? String(titularEditado.id) : null;
+    const pessoa = titularEditado || row;
+
+    // Nome e e-mail saem da pessoa; cargo, departamento e foto saem da
+    // unidade — exatamente de onde o card lê cada um deles.
+    document.getElementById("ed-name").value = valorCampo(pessoa, "name", "nome", "fullName", "nomeCompleto", "full_name", "nome_completo", "employeeName", "nomeFuncionario") || "";
+    document.getElementById("ed-lastName").value = valorCampo(pessoa, "lastName", "sobrenome", "surname", "ultimoNome", "last_name", "sobrenome_completo", "lastNameCompleto") || "";
     document.getElementById("ed-position").value = valorCampo(row, "position", "cargo", "titulo", "title", "cargoAtual", "positionName") || "";
-    document.getElementById("ed-email").value = valorCampo(row, "email", "mail", "emailCorporativo", "email_corporativo") || "";
+    document.getElementById("ed-email").value = valorCampo(pessoa, "email", "mail", "emailCorporativo", "email_corporativo") || "";
     document.getElementById("ed-department_name").value = valorCampo(row, "department_name", "department", "departamento", "departmentName", "department_name", "departamentoNome") || "";
     document.getElementById("ed-image").value = valorCampo(row, "image", "imageUrl", "foto", "photo", "avatar", "imagem", "image_url", "photo_url", "fotoUrl", "photoUrl") || "";
-    
+
+    // Deixa explícito que esses três campos são da pessoa, não da unidade.
+    document.getElementById("ed-rotulo-name").innerHTML = titularEditado ? "Nome do titular <b>*</b>" : "Nome <b>*</b>";
+    document.getElementById("ed-rotulo-lastName").textContent = titularEditado ? "Sobrenome do titular" : "Sobrenome";
+    document.getElementById("ed-rotulo-email").textContent = titularEditado ? "E-mail do titular" : "E-mail";
+
+    // O subtitulo do card e "<cargo do titular>: <nome do titular>". Sem este
+    // campo o cargo da pessoa ficava sem nenhuma forma de ser corrigido pela
+    // interface, porque o campo Cargo acima pertence a unidade.
+    document.getElementById("ed-campo-titular-position").style.display = titularEditado ? "" : "none";
+    document.getElementById("ed-titular-position").value = titularEditado
+     ? valorCampo(titularEditado, "position", "cargo", "titulo", "title") || ""
+     : "";
+
     montarSelectTipo(row);
     atualizarPreview(valorCampo(row, "image", "imageUrl", "foto", "photo", "avatar", "imagem") || "");
     montarSelectChefe(editandoId, row.parentId);
@@ -2875,6 +2904,7 @@
     }
     document.getElementById("editor").hidden = true;
     editandoId = null;
+    editandoTitularId = null;
    }
 
    // A raiz não tem chefe, e ninguém pode responder a um subordinado seu —
@@ -3060,7 +3090,23 @@
     if (!eraNovo) pushUndo();
     novoNoPendente = null;
 
-    Object.assign(row, valores);
+    // Quando a unidade tem gestor absorvido, nome e e-mail pertencem a
+    // pessoa (a linha que o card exibe) e o resto pertence a unidade.
+    // Gravar tudo na unidade faria o nome digitado sumir do card.
+    const titularRow = editandoTitularId
+     ? currentData.find((r) => String(r.id) === String(editandoTitularId))
+     : null;
+
+    if (titularRow) {
+     titularRow.name = valores.name;
+     titularRow.lastName = valores.lastName;
+     titularRow.email = valores.email;
+     titularRow.position = document.getElementById("ed-titular-position").value.trim();
+     row.position = valores.position;
+     row.department_name = valores.department_name;
+    } else {
+     Object.assign(row, valores);
+    }
     row.type = novoTipo;
     if (mudouChefe) row.parentId = novoChefe;
     // Sincroniza image/imageUrl para o render dos cards.
