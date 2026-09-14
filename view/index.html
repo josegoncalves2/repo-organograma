@@ -143,22 +143,18 @@
        const doc = frame.contentDocument;
        if (!doc) return;
 
+       // A página já entra em modo somente-leitura sozinha via ?view=1: ela
+       // remove toolbar, editor e paleta, e bloqueia as funções de escrita.
+       // Aqui fica só o que sobra de escrita fora da toolbar.
+       // Não esconder '.sidebar'/'#sidebar' nem usar seletores genéricos
+       // ('button', 'input'): a árvore de navegação e sua busca vivem ali.
        const esconder = [
-         '.toolbar',
-         '.sidebar',
-         '#sidebar',
          '#editor',
          '#cores',
-         '.status-bar',
          '#btn-descartar',
          '.drop-overlay',
          '.modal',
-         'button',
-         'input',
-         'select',
-         'label.file-upload',
-         '.toolbar__group',
-         '.toolbar__divider'
+         'label.file-upload'
        ];
 
        esconder.forEach((seletor) => {
@@ -175,13 +171,6 @@
        if (docBody) {
          docBody.classList.add('kiosk-mode');
          docBody.style.overflow = 'hidden';
-       }
-
-       const rootMain = doc.querySelector('.main-content');
-       if (rootMain) {
-         rootMain.style.marginLeft = '0';
-         rootMain.style.width = '100%';
-         rootMain.style.maxWidth = '100%';
        }
 
        const chartWrap = doc.querySelector('.chart-wrapper');

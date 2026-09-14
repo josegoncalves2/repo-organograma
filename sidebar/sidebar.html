@@ -37,6 +37,19 @@
     let expandedIds = new Set();
     let selectedId = null;
 
+    // Na visualização pública (?view=1 na página que hospeda este iframe) a
+    // árvore continua navegável, mas sem as ações que alteram dados.
+    const SOMENTE_LEITURA = (() => {
+      try {
+        const busca = window.parent !== window
+          ? window.parent.location.search
+          : window.location.search;
+        return new URLSearchParams(busca).get('view') === '1';
+      } catch (erro) {
+        return false;
+      }
+    })();
+
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('collapsed');
       // Quem reserva os 320px e o <aside> da pagina principal; encolher so
@@ -122,9 +135,9 @@
           <span class="node-actions">
             ${hasChildren ? `<button onclick="escoparNo('${id}', event)" title="Ver o organograma a partir daqui"><i class="fas fa-sitemap"></i></button>` : ''}
             <button onclick="focusNode('${id}', event)" title="Centralizar"><i class="fas fa-crosshairs"></i></button>
-            <button onclick="editNode('${id}', event)" title="Editar"><i class="fas fa-pen"></i></button>
+            ${SOMENTE_LEITURA ? '' : `<button onclick="editNode('${id}', event)" title="Editar"><i class="fas fa-pen"></i></button>
             <button onclick="addChild('${id}', event)" title="Adicionar subordinado"><i class="fas fa-plus"></i></button>
-            <button onclick="deleteNode('${id}', event)" title="Remover"><i class="fas fa-trash"></i></button>
+            <button onclick="deleteNode('${id}', event)" title="Remover"><i class="fas fa-trash"></i></button>`}
           </span>
         </div>
       `;

@@ -138,6 +138,13 @@
     >
      <i class="fas fa-exchange-alt"></i> Layout
     </button>
+    <button
+     class="btn"
+     onclick="abrirVisualizacaoPublica()"
+     title="Abrir a tela de visualização pública (somente leitura)"
+    >
+     <i class="fas fa-eye"></i> Visualização pública
+    </button>
    </div>
 
    <div class="toolbar__group">
@@ -2575,8 +2582,9 @@
     if (READ_ONLY_MODE) {
       const toolbar = document.querySelector(".toolbar");
       if (toolbar) toolbar.remove();
-      const sidebar = document.getElementById("sidebar");
-      if (sidebar) sidebar.remove();
+      // A árvore lateral continua na visualização pública: ela é navegação,
+      // não edição. O próprio sidebar oculta os botões de editar/adicionar/
+      // remover quando detecta ?view=1.
       const editor = document.getElementById("editor");
       if (editor) editor.remove();
       const colors = document.getElementById("cores");
@@ -2735,6 +2743,10 @@
     afterRender();
     salvarVisual();
     setStatus(`Layout: ${layoutAtual}`);
+   }
+
+   function abrirVisualizacaoPublica() {
+    window.location.href = "view/";
    }
 
    function safeCall(method, label) {
