@@ -2531,6 +2531,10 @@
     const corpo = await resposta.json();
     if (!corpo.existe) return null;
     versaoServidor = corpo.versao;
+    // Se o servidor está usando dados iniciais (arquivo de fábrica), marcar como alterado
+    if (corpo.inicial) {
+     marcarAlterado(true);
+    }
     return corpo.linhas;
    }
 
@@ -2590,7 +2594,15 @@
     } catch (erro) {
      setStatus("Servidor fora do ar — abrindo o organograma original, sem salvar", true);
     }
-    const originais = await d3.csv("misc/data.csv");
+    const originais = await d3.csv("misc/organograma-completo.csv", (row) => {
+     // Garante que a BOM UTF-8 (﻿) do Excel seja removida das chaves
+     const semBom = {};
+     for (const k of Object.keys(row || {})) {
+      const limpo = k.replace(/^\ufeff/, "");
+      semBom[limpo] = row[k];
+     }
+     return semBom;
+    });
     iniciar(
      originais,
      READ_ONLY_MODE
@@ -2801,16 +2813,16 @@
     if (!row) return setStatus("Colaborador não encontrado", true);
 
     editandoId = String(alvo);
-    // Populate fields directly from the row data
-    document.getElementById("ed-name").value = row.name || "";
-    document.getElementById("ed-lastName").value = row.lastName || "";
-    document.getElementById("ed-position").value = row.position || "";
-    document.getElementById("ed-email").value = row.email || "";
-    document.getElementById("ed-department_name").value = row.department_name || "";
-    document.getElementById("ed-image").value = row.image || row.imageUrl || "";
+    // Populate fields from row data, using valorCampo for alias support
+    document.getElementById("ed-name").value = valorCampo(row, "name", "nome", "fullName", "nomeCompleto", "full_name", "nome_completo", "employeeName", "nomeFuncionario") || "";
+    document.getElementById("ed-lastName").value = valorCampo(row, "lastName", "sobrenome", "surname", "ultimoNome", "last_name", "sobrenome_completo", "lastNameCompleto") || "";
+    document.getElementById("ed-position").value = valorCampo(row, "position", "cargo", "titulo", "title", "cargoAtual", "positionName") || "";
+    document.getElementById("ed-email").value = valorCampo(row, "email", "mail", "emailCorporativo", "email_corporativo") || "";
+    document.getElementById("ed-department_name").value = valorCampo(row, "department_name", "department", "departamento", "departmentName", "department_name", "departamentoNome") || "";
+    document.getElementById("ed-image").value = valorCampo(row, "image", "imageUrl", "foto", "photo", "avatar", "imagem", "image_url", "photo_url", "fotoUrl", "photoUrl") || "";
     
     montarSelectTipo(row);
-    atualizarPreview(row.image || row.imageUrl || "");
+    atualizarPreview(valorCampo(row, "image", "imageUrl", "foto", "photo", "avatar", "imagem") || "");
     montarSelectChefe(editandoId, row.parentId);
     document.getElementById("ed-erro").textContent = "";
     document.getElementById("editor-titulo").textContent =
@@ -3044,7 +3056,9 @@
      row.image = valores.image;
      row.imageUrl = valores.image;
     } else {
-     // Clear image fields if empty
+     // Preserve existing image if user cleared the field intentionally
+     // row.image and row.imageUrl keep their previous values unless explicitly set to empty
+     // Only clear if the field was genuinely empty (user removed photo)
      row.image = "";
      row.imageUrl = "";
     }
