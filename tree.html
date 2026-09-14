@@ -693,7 +693,7 @@
         }px;margin-left:${15}px;border-radius:100px;width:50px;height:50px;" ></div>
                         <div style="margin-top:${
                          -imageDiffVert - 20
-                        }px;">   <img onerror="this.style.display='none'" src="${resolveImageUrl(d.data.image)}" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
+                        }px;"><img onerror="this.style.visibility='hidden'" src="${resolveImageUrl(d.data.image)}" style="margin-left:${20}px;border-radius:100px;width:40px;height:40px;" /></div>
                         <div style="font-size:13px;color:${textColor};margin-left:20px;margin-right:14px;margin-top:10px;font-weight:600;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word">${
                          escaparHtml(d.data.name)
                         }</div>
@@ -738,13 +738,9 @@
             }px;border-radius:2px;overflow:visible">
               <div style="height:${
                d.height - 32
-              }px;padding-top:0px;background-color:white;border:1px solid lightgray;">
-
-                <img onerror="this.style.display='none'" src="${resolveImageUrl(d.data.imageUrl)}" style="margin-top:-30px;margin-left:${
+              }px;padding-top:0px;background-color:white;border:1px solid lightgray;"><img onerror="this.style.visibility='hidden'" src="${resolveImageUrl(d.data.imageUrl)}" style="margin-top:-30px;margin-left:${
          d.width / 2 - 30
-        }px;border-radius:100px;width:60px;height:60px;" />
-
-               <div style="margin-right:10px;margin-top:15px;float:right">${
+        }px;border-radius:100px;width:60px;height:60px;" /><div style="margin-right:10px;margin-top:15px;float:right">${
                 d.data.id
                }</div>
 
