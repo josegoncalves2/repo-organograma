@@ -605,16 +605,112 @@ Decidir qual das duas é a intenção real — **perguntar ao usuário**:
 
 ---
 
+## BUG #4 — Healthcheck sempre falhava (IPv6 vs IPv4) ✅ JÁ CORRIGIDO
+
+**Severidade**: Alta em operação — o container servia normalmente, mas o Docker
+o reportava como `unhealthy` **permanentemente** (`FailingStreak: 17`, falhando
+desde o start).
+
+### Diagnóstico
+
+O servidor escuta em `0.0.0.0:8085` — **apenas IPv4** (confirmado com `netstat`
+dentro do container). Mas o `/etc/hosts` do container mapeia `localhost` para
+os dois:
+
+```text
+127.0.0.1   localhost
+::1         localhost ip6-localhost ip6-loopback
+```
+
+O `wget` do BusyBox resolve `localhost` e tenta **`::1` (IPv6) primeiro** → nada
+escuta ali → `Connection refused`. Medição dentro do container:
+
+| Comando | Resultado |
+|---|---|
+| `wget --spider http://localhost:8085/api/saude` | ❌ `exit=1` — Connection refused |
+| `wget --spider http://127.0.0.1:8085/api/saude` | ✅ `exit=0` |
+| `wget --spider http://[::1]:8085/api/saude` | ❌ `exit=1` |
+
+**Por que importa**: `depends_on: condition: service_healthy` de qualquer outra
+stack (o `.env` cita `hub-login`) ficaria travado para sempre esperando este
+container. Monitoramento mostraria vermelho permanente.
+
+### Correção aplicada
+
+Trocado `localhost` por `127.0.0.1` no healthcheck, em dois lugares:
+
+- `Dockerfile` linha 36
+- `docker-compose.yml` linha 22
+
+Após `docker compose up -d --build`: `Up (healthy)` ✅
+
+---
+
+## 🆕 Funcionalidades adicionadas (14/09/2026)
+
+### A. Botão "Visualização pública" na área administrativa
+
+- `tree.html`: botão novo no grupo de controles de visualização, ao lado de
+  `Fit` / `Full` / `Layout`, chamando `abrirVisualizacaoPublica()`.
+- A função (junto de `cycleLayout()`) faz `window.location.href = "view/"`.
+
+### B. Árvore de navegação na visualização pública, sem edição
+
+O `/view` não mostrava a árvore lateral. A causa **não** estava no
+`view/index.html`, e sim no próprio `tree.html`: o bloco `READ_ONLY_MODE`
+removia o sidebar do DOM (`if (sidebar) sidebar.remove()`).
+
+Três mudanças:
+
+1. **`tree.html`** — parou de remover o sidebar em `READ_ONLY_MODE`. Continua
+   removendo toolbar, editor e paleta de cores.
+
+2. **`sidebar/sidebar.html`** — novo `SOMENTE_LEITURA`, que lê
+   `window.parent.location.search` (a página que hospeda o iframe) procurando
+   `view=1`. Quando verdadeiro, os botões por nó de **editar**, **adicionar
+   subordinado** e **remover** não são renderizados. Continuam disponíveis:
+   busca, expandir/recolher, centralizar e "ver o organograma a partir daqui".
+
+   Cadeia de iframes que faz isso funcionar:
+   ```text
+   /view/                    (search = "")
+     └─ /?view=1             (search = "?view=1")  ← é este que o sidebar lê
+          └─ /sidebar/sidebar.html
+   ```
+
+3. **`view/index.html`** — a lista `esconder` usava seletores genéricos
+   (`'button'`, `'input'`, `'select'`) e também `'.sidebar'` / `'#sidebar'`.
+   Isso apagaria a árvore restaurada e sua caixa de busca. A lista agora cobre
+   só o que sobra de escrita fora da toolbar. Removido também o override que
+   forçava `.main-content { margin-left: 0; width: 100% }` — o layout é flexbox
+   (`.layout-with-sidebar`), e com a sidebar de volta esse override sobrepunha
+   o gráfico a ela.
+
+**Verificação**: screenshots com Chrome headless nas duas telas confirmaram o
+botão no admin e a árvore navegável sem ações de edição no `/view`.
+
+---
+
 ## 📋 Resumo para o próximo agente
 
-| # | Bug | Arquivo | Linhas | Precisa perguntar ao usuário? |
+| # | Bug | Arquivo | Linhas | Status |
 |---|---|---|---|---|
-| 1 | Botão "Descartar" sempre visível (lógica invertida) | `tree.html` | 2534-2537, 2590 | Não — correção é objetiva |
-| 2 | README cita URL de rede que não responde | `README.md` / `docker-compose.yml` | 9-13, 32 / 18 | **Sim** — Opção A ou B (B tem risco de segurança) |
-| 3 | Comentário contradiz o código da foto | `tree.html` | ~3056-3064 | **Sim** — qual é a intenção real |
+| 1 | Botão "Descartar" sempre visível (lógica invertida) | `tree.html` | 2534-2537, 2590 | ⬜ Aberto — correção objetiva |
+| 2 | README cita URL de rede que não responde | `README.md` / `docker-compose.yml` | 9-13, 32 / 18 | ⬜ Aberto — **perguntar** Opção A ou B |
+| 3 | Comentário contradiz o código da foto | `tree.html` | ~3056-3064 | ⬜ Aberto — **perguntar** a intenção |
+| 4 | Healthcheck sempre unhealthy (IPv6) | `Dockerfile` / `docker-compose.yml` | 36 / 22 | ✅ Corrigido |
 
-**Nenhum destes bugs impede o uso do sistema hoje.** O organograma está no ar,
-servindo 643 linhas, com todos os assets carregando. São defeitos de acabamento.
+**Nenhum dos bugs abertos impede o uso do sistema hoje.** O organograma está no
+ar, servindo 643 linhas, com todos os assets carregando. São defeitos de acabamento.
+
+### Observação (não é bug, não mexer sem pedido)
+
+O tema visual (claro/escuro, layout, design) é salvo em `localStorage`
+(`salvarVisual()` / `aplicarVisualSalvo()`), ou seja, **por navegador**. Um
+navegador novo — um totem, um visitante, o Chrome headless — abre o `/view` no
+tema padrão claro, não no tema escuro que o administrador escolheu na máquina
+dele. Se a intenção for que a visualização pública tenha sempre uma aparência
+fixa, isso precisa ser decidido e pedido explicitamente.
 
 **Regra de ouro para esta base**: corrigir o defeito pedido e parar. Não mexer em
 cor, estilo ou layout sem pedido explícito do usuário.
