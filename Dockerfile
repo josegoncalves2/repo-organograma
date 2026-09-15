@@ -10,6 +10,7 @@ WORKDIR /app
 
 COPY server.js ./
 COPY tree.html ./
+COPY login.html ./
 COPY index.js ./
 COPY src/ ./src/
 COPY build/ ./build/

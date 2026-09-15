@@ -93,7 +93,23 @@ Localmente tambem funciona em:
 http://localhost:8085
 ```
 
+A administracao (`/`) leva para `/login`, que pede so a senha definida em
+`ADMIN_SENHA` no `.env`; a sessao dura 12 horas. Sem essa variavel o servidor
+nao sobe. A visualizacao publica fica aberta a qualquer um da rede em:
+
+```text
+http://192.168.0.218:8085/view/
+```
+
 ## Subir pelo WSL
+
+Na primeira vez, crie o `.env` a partir do modelo e defina `ADMIN_SENHA`
+(o `.env` nao vai para o git):
+
+```bash
+cd /mnt/c/Users/40446686808/projetos/organograma
+cp .env.example .env
+```
 
 ```bash
 cd /mnt/c/Users/40446686808/projetos/organograma
@@ -177,6 +193,7 @@ misc/modelo-organograma.json
 
 ```text
 tree.html                 Interface principal
+login.html                Senha da administracao
 server.js                 Servidor HTTP e API de persistencia
 docker-compose.yml        Compose para WSL host network na porta 8085
 Dockerfile                Imagem Node.js

@@ -15,9 +15,9 @@ services:
       DOCKER: "1"
       HOST: "0.0.0.0"
     ports:
-      # Exposto na rede local a pedido. Atenção: a API tem POST e DELETE sem
-      # autenticação — qualquer um que alcance esta porta pode reescrever ou
-      # apagar o organograma.
+      # Exposto na rede local a pedido. Sem senha só abre a visualização
+      # pública (/view/) e a leitura dos dados; a administração e toda gravação
+      # exigem ADMIN_SENHA do .env.
       - "8085:8085"
     volumes:
       - orgchart-dados:/dados

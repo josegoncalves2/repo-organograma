@@ -18,6 +18,12 @@ if (!EXECUCAO_PERMITIDA) {
   console.error("Execução bloqueada: rode via Docker Compose; não é permitida a execução direta do Node fora do container.");
   process.exit(1);
 }
+// Sem senha a administração ficaria aberta para a rede inteira: melhor não subir.
+const SENHA_ADMIN = process.env.ADMIN_SENHA || "";
+if (!SENHA_ADMIN) {
+  console.error("Defina ADMIN_SENHA no .env: sem ela a administração do organograma ficaria aberta a qualquer um da rede.");
+  process.exit(1);
+}
 const ARQUIVO = path.join(DIR_DADOS, "organograma.json");
 const ARQUIVO_INICIAL = path.join(RAIZ, "dados", "organograma.json");
 const ANTERIOR = path.join(DIR_DADOS, "organograma.anterior.json");
@@ -195,7 +201,7 @@ const LIMITE_FOTO = 3 * 1024 * 1024;
 // Guardar a imagem embutida como data URI incharia o CSV em alguns MB e o
 // tornaria impossível de abrir no Excel.
 async function fotos(req, res, rota) {
-  const id = decodeURIComponent(rota.slice("/api/fotos/".length));
+  const id = rota.slice("/api/fotos/".length);
   if (!id || !/^[A-Za-z0-9_.-]+$/.test(id)) return json(res, 400, { erro: "id inválido" });
   const arquivo = path.join(DIR_FOTOS, id + ".jpg");
 
@@ -233,6 +239,7 @@ async function fotos(req, res, rota) {
 
 async function api(req, res, rota) {
   if (rota === "/api/saude") return json(res, 200, { ok: true });
+  if (rota === "/api/login") return login(req, res);
   if (rota.startsWith("/api/fotos/")) return fotos(req, res, rota);
   if (rota !== "/api/organograma") return json(res, 404, { erro: "rota desconhecida" });
 
@@ -282,8 +289,76 @@ async function api(req, res, rota) {
   res.end();
 }
 
+const resumo = (texto) => crypto.createHash("sha256").update(texto).digest();
+const mesmoTexto = (a, b) => crypto.timingSafeEqual(resumo(a), resumo(b));
+
+const COOKIE_SESSAO = "organograma_admin";
+const SESSAO_SEGUNDOS = 12 * 60 * 60;
+// A sessão é assinada com a própria senha: nada fica em memória, sobrevive a
+// reinício do container e trocar ADMIN_SENHA derruba todas as sessões abertas.
+const assinar = (expira) => crypto.createHmac("sha256", SENHA_ADMIN).update(`sessao:${expira}`).digest("hex");
+
+function lerCookie(req, nome) {
+  for (const parte of String(req.headers.cookie || "").split(";")) {
+    const [chave, ...valor] = parte.trim().split("=");
+    if (chave === nome) return valor.join("=");
+  }
+  return "";
+}
+
+function autenticado(req) {
+  const [expira, assinatura] = lerCookie(req, COOKIE_SESSAO).split(".");
+  if (!assinatura || !(Number(expira) > Date.now() / 1000)) return false;
+  return mesmoTexto(assinatura, assinar(expira));
+}
+
+async function login(req, res) {
+  if (req.method !== "POST") {
+    res.writeHead(405, { Allow: "POST" });
+    return res.end();
+  }
+  const senha = new URLSearchParams(await lerCorpo(req)).get("senha") || "";
+  if (!mesmoTexto(senha, SENHA_ADMIN)) {
+    res.writeHead(303, { Location: "/login?erro=1" });
+    return res.end();
+  }
+  const expira = Math.floor(Date.now() / 1000) + SESSAO_SEGUNDOS;
+  res.writeHead(303, {
+    Location: "/",
+    "Set-Cookie": `${COOKIE_SESSAO}=${expira}.${assinar(expira)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSAO_SEGUNDOS}`
+  });
+  res.end();
+}
+
+// Lista fechada do que a visualização pública carrega. Arquivo novo no projeto
+// nasce protegido até ser liberado aqui.
+function publica(req, caminho, busca) {
+  if (caminho === "/api/saude") return true;
+  if (caminho === "/api/login") return req.method === "POST";
+  if (req.method !== "GET" && req.method !== "HEAD") return false;
+  if (caminho === "/login") return true;
+  if (caminho === "/api/organograma") return true;
+  if (caminho === "/view" || caminho.startsWith("/view/")) return true;
+  // O mesmo tree.html, em modo somente leitura; gravar continua exigindo a senha.
+  if (caminho === "/" && busca.get("view") === "1") return true;
+  if (caminho === "/misc/favicon.ico" || caminho === "/misc/organograma-completo.csv") return true;
+  return ["/build/", "/sidebar/", "/fotos/"].some((pasta) => caminho.startsWith(pasta));
+}
+
+function negar(res, caminho) {
+  if (caminho === "/" || caminho === "/tree.html") {
+    res.writeHead(303, { Location: "/login", "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+  if (caminho.startsWith("/api/")) {
+    return json(res, 401, { erro: "sessão de administrador ausente ou expirada — entre de novo em /login" });
+  }
+  res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" }).end("acesso restrito");
+}
+
 function estatico(req, res, rota) {
-  const direta = rota === "/" ? "tree.html" : decodeURIComponent(rota).replace(/^\/+/, "");
+  const direta = rota === "/" ? "tree.html" : rota === "/login" ? "login.html" : rota.replace(/^\/+/, "");
   const normalizada = direta || "tree.html";
 
   // Rotas de visualização pública: /view, /view/ e /view/<slug>
@@ -327,7 +402,22 @@ function estatico(req, res, rota) {
 
 http
   .createServer((req, res) => {
-    const rota = (req.url || "/").split("?")[0];
+    // Decodifica e normaliza uma vez só: a liberação e o arquivo servido olham
+    // o mesmo caminho, então "/build/%252e%252e/server.js" não escapa da lista.
+    let url;
+    let rota;
+    try {
+      url = new URL("http://localhost" + (req.url || "/"));
+      rota = path.posix.normalize(decodeURIComponent(url.pathname));
+      if (rota.includes("\0")) throw new Error("byte nulo");
+    } catch (erro) {
+      res.writeHead(400).end();
+      return;
+    }
+    if (!publica(req, rota, url.searchParams) && !autenticado(req)) {
+      negar(res, rota);
+      return;
+    }
     if (rota.startsWith("/api/")) {
       api(req, res, rota).catch((erro) => {
         console.error("erro na api:", erro);

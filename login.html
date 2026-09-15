@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organograma • Administração</title>
+  <link rel="shortcut icon" type="image/x-icon" href="/misc/favicon.ico" />
+  <link rel="stylesheet" href="/build/inter.css" />
+  <style>
+   * { box-sizing: border-box; }
+
+   body {
+     margin: 0;
+     min-height: 100vh;
+     display: grid;
+     place-items: center;
+     padding: 16px;
+     background: #f6f7fb;
+     color: #0f172a;
+     font-family: Inter, "Segoe UI", sans-serif;
+   }
+
+   form {
+     width: 100%;
+     max-width: 340px;
+     padding: 28px;
+     background: #fff;
+     border: 1px solid #e2e8f0;
+     border-radius: 12px;
+     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+   }
+
+   h1 { margin: 0 0 4px; font-size: 20px; color: #1565c0; }
+   .subtitulo { margin: 0 0 20px; font-size: 13px; color: #64748b; }
+   label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+
+   input {
+     width: 100%;
+     padding: 10px 12px;
+     font: inherit;
+     border: 1px solid #cbd5e1;
+     border-radius: 8px;
+   }
+
+   input:focus { outline: 2px solid #1565c0; outline-offset: 1px; border-color: #1565c0; }
+   .erro { margin: 10px 0 0; font-size: 13px; color: #b91c1c; }
+
+   button {
+     width: 100%;
+     margin-top: 16px;
+     padding: 10px;
+     font: inherit;
+     font-weight: 600;
+     color: #fff;
+     background: #1565c0;
+     border: 0;
+     border-radius: 8px;
+     cursor: pointer;
+   }
+
+   button:hover { background: #0d47a1; }
+   button:focus-visible { outline: 2px solid #0d47a1; outline-offset: 2px; }
+   a { display: block; margin-top: 16px; font-size: 13px; text-align: center; color: #1565c0; }
+  </style>
+ </head>
+ <body>
+  <form method="post" action="/api/login">
+   <h1>Organograma</h1>
+   <p class="subtitulo">Administração</p>
+   <label for="senha">Senha</label>
+   <input id="senha" name="senha" type="password" autocomplete="current-password" required autofocus />
+   <p class="erro" id="erro" hidden>Senha incorreta.</p>
+   <button type="submit">Entrar</button>
+   <a href="/view/">Ir para a visualização pública</a>
+  </form>
+  <script>
+   if (new URLSearchParams(location.search).has("erro")) document.getElementById("erro").hidden = false;
+  </script>
+ </body>
+</html>
