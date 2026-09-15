@@ -17,6 +17,23 @@
       </button>
     </div>
 
+    <!-- Visualização pública: as ações ficam aqui, uma vez só, e agem no
+         item selecionado. No administrativo continuam em cada linha. -->
+    <div class="sidebar__acoes" id="sidebar-acoes" hidden>
+      <button type="button" data-acao="expandir" onclick="expandirSelecionado()" title="Expandir o item selecionado até o último nível (sem seleção: a árvore exibida inteira)">
+        <i class="fas fa-plus-circle"></i><span>Expandir</span>
+      </button>
+      <button type="button" data-acao="recolher" onclick="recolherSelecionado()" title="Recolher todos os níveis do item selecionado (sem seleção: a árvore exibida inteira)">
+        <i class="fas fa-minus-circle"></i><span>Recolher</span>
+      </button>
+      <button type="button" data-acao="escopo" onclick="verAPartirDoSelecionado()" title="Ver o organograma a partir do item selecionado">
+        <i class="fas fa-sitemap"></i><span>Ver daqui</span>
+      </button>
+      <button type="button" data-acao="centralizar" onclick="centralizarSelecionado()" title="Centralizar o item selecionado no organograma">
+        <i class="fas fa-crosshairs"></i><span>Centralizar</span>
+      </button>
+    </div>
+
     <div class="sidebar__search">
       <input type="text" id="sidebar-search" placeholder="Buscar nó, cargo ou pessoa..." oninput="filterTree(this.value)" />
     </div>
@@ -50,6 +67,45 @@
       }
     })();
 
+    if (SOMENTE_LEITURA) {
+      document.getElementById('sidebar').classList.add('sidebar--leitura');
+      document.getElementById('sidebar-acoes').hidden = false;
+    }
+
+    function temFilhos(id) {
+      return treeData.some(r => String(r.parentId || '').trim() === String(id));
+    }
+
+    // Sem seleção, expandir/recolher valem para a árvore inteira; os outros
+    // dois precisam de um item. Item sem filhos não tem o que expandir,
+    // recolher nem mostrar "a partir dele".
+    function atualizarBarra() {
+      const barra = document.getElementById('sidebar-acoes');
+      if (!barra || barra.hidden) return;
+      const selecionado = selectedId && treeData.some(r => String(r.id) === String(selectedId)) ? selectedId : null;
+      const semFilhos = selecionado !== null && !temFilhos(selecionado);
+      barra.querySelector('[data-acao="expandir"]').disabled = !treeData.length || semFilhos;
+      barra.querySelector('[data-acao="recolher"]').disabled = !treeData.length || semFilhos;
+      barra.querySelector('[data-acao="escopo"]').disabled = selecionado === null || semFilhos;
+      barra.querySelector('[data-acao="centralizar"]').disabled = selecionado === null;
+    }
+
+    function expandirSelecionado() {
+      if (window.parent && window.parent.expandirArvoreSelecionada) window.parent.expandirArvoreSelecionada();
+    }
+
+    function recolherSelecionado() {
+      if (window.parent && window.parent.recolherArvoreSelecionada) window.parent.recolherArvoreSelecionada();
+    }
+
+    function verAPartirDoSelecionado() {
+      if (selectedId && window.parent && window.parent.aplicarEscopo) window.parent.aplicarEscopo(selectedId);
+    }
+
+    function centralizarSelecionado() {
+      if (selectedId && window.parent && window.parent.centerFocusNode) window.parent.centerFocusNode();
+    }
+
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('collapsed');
       // Quem reserva os 320px e o <aside> da pagina principal; encolher so
@@ -65,6 +121,7 @@
     }
 
     function renderTree(query = '') {
+      atualizarBarra();
       const container = document.getElementById('sidebar-tree');
       container.innerHTML = '';
       if (!treeData || !treeData.length) {
@@ -132,13 +189,13 @@
           <span class="node-label" title="${labelText}">${labelText}</span>
           ${subText ? `<span class="node-sub" title="${subText}">${subText}</span>` : ''}
           <span class="node-count">${children.length}</span>
-          <span class="node-actions">
+          ${SOMENTE_LEITURA ? '' : `<span class="node-actions">
             ${hasChildren ? `<button onclick="escoparNo('${id}', event)" title="Ver o organograma a partir daqui"><i class="fas fa-sitemap"></i></button>` : ''}
             <button onclick="focusNode('${id}', event)" title="Centralizar"><i class="fas fa-crosshairs"></i></button>
-            ${SOMENTE_LEITURA ? '' : `<button onclick="editNode('${id}', event)" title="Editar"><i class="fas fa-pen"></i></button>
+            <button onclick="editNode('${id}', event)" title="Editar"><i class="fas fa-pen"></i></button>
             <button onclick="addChild('${id}', event)" title="Adicionar subordinado"><i class="fas fa-plus"></i></button>
-            <button onclick="deleteNode('${id}', event)" title="Remover"><i class="fas fa-trash"></i></button>`}
-          </span>
+            <button onclick="deleteNode('${id}', event)" title="Remover"><i class="fas fa-trash"></i></button>
+          </span>`}
         </div>
       `;
 
@@ -173,6 +230,7 @@
       document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
       const el = document.querySelector('.tree-node[data-id="' + selectedId + '"]');
       if (el) el.classList.add('active');
+      atualizarBarra();
       // Comunicar com a página principal
       if (window.parent && window.parent.selectNode) {
         window.parent.selectNode(selectedId);
@@ -227,6 +285,38 @@
       if (root && !expandedIds.size) expandedIds.add(String(root.id));
       if (selectedId && !idsAtuais.has(String(selectedId))) selectedId = null;
       renderTree();
+    };
+
+    // Acompanha o expandir/recolher da barra da visualização pública: a subárvore
+    // de id abre (ou fecha) inteira, e o caminho até ela fica aberto para o
+    // nó continuar à vista.
+    window.setSidebarExpansao = function(id, expandir) {
+      const alvo = String(id);
+      const filhosDe = new Map();
+      treeData.forEach(r => {
+        const pai = String(r.parentId || '').trim();
+        if (!filhosDe.has(pai)) filhosDe.set(pai, []);
+        filhosDe.get(pai).push(String(r.id));
+      });
+      const subarvore = new Set();
+      const fila = [alvo];
+      while (fila.length) {
+        const atual = fila.shift();
+        if (subarvore.has(atual)) continue;
+        subarvore.add(atual);
+        (filhosDe.get(atual) || []).forEach(filho => fila.push(filho));
+      }
+      subarvore.forEach(v => expandir ? expandedIds.add(v) : expandedIds.delete(v));
+
+      const caminho = new Set();
+      let no = treeData.find(r => String(r.id) === alvo);
+      while (no && String(no.parentId || '').trim() && !caminho.has(String(no.id))) {
+        caminho.add(String(no.id));
+        const pai = String(no.parentId).trim();
+        expandedIds.add(pai);
+        no = treeData.find(r => String(r.id) === pai);
+      }
+      renderTree(document.getElementById('sidebar-search').value);
     };
 
     window.setSidebarSelection = function(id) {

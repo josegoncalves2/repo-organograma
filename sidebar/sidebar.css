@@ -88,6 +88,60 @@ html, body {
    color: #1565C0;
 }
 
+/* Ações do item selecionado (só na visualização pública) */
+.sidebar__acoes {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 6px;
+   padding: 10px 14px 0;
+   flex-shrink: 0;
+}
+
+.sidebar__acoes[hidden] {
+   display: none;
+}
+
+.sidebar__acoes button {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   gap: 6px;
+   min-width: 0;
+   padding: 7px 8px;
+   border: 1px solid #cbd5e1;
+   border-radius: 8px;
+   background: #fff;
+   color: #334155;
+   font-family: inherit;
+   font-size: 12px;
+   font-weight: 600;
+   cursor: pointer;
+   transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sidebar__acoes button span {
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}
+
+.sidebar__acoes button:hover:not(:disabled) {
+   background: #e8f0fe;
+   border-color: #1565C0;
+   color: #1565C0;
+}
+
+.sidebar__acoes button:focus-visible {
+   outline: none;
+   border-color: #1565C0;
+   box-shadow: 0 0 0 3px rgba(21,101,192,0.12);
+}
+
+.sidebar__acoes button:disabled {
+   opacity: 0.45;
+   cursor: not-allowed;
+}
+
 /* Barra de busca */
 .sidebar__search {
    padding: 10px 14px;
@@ -332,6 +386,12 @@ body.with-sidebar .chart-wrapper {
    padding-right: 118px;
 }
 
+/* Sem ações na linha não há o que reservar: o nome usa a largura toda. */
+.sidebar--leitura .tree-node:hover .node-row,
+.sidebar--leitura .tree-node.active .node-row {
+   padding-right: 22px;
+}
+
 .tree-node:hover .node-actions,
 .tree-node.active .node-actions {
    opacity: 1;
@@ -347,6 +407,7 @@ body.with-sidebar .chart-wrapper {
 }
 
 .sidebar.collapsed .sidebar__title,
+.sidebar.collapsed .sidebar__acoes,
 .sidebar.collapsed .sidebar__search,
 .sidebar.collapsed .sidebar__tree,
 .sidebar.collapsed .sidebar__footer {
@@ -390,6 +451,18 @@ body[data-theme="dark"] .sidebar__search input {
    background-color: #020617;
    border-color: #334155;
    color: #e5e7eb;
+}
+
+body[data-theme="dark"] .sidebar__acoes button {
+   background: #020617;
+   border-color: #334155;
+   color: #cbd5e1;
+}
+
+body[data-theme="dark"] .sidebar__acoes button:hover:not(:disabled) {
+   background: #1e293b;
+   border-color: #60a5fa;
+   color: #bfdbfe;
 }
 
 body[data-theme="dark"] .sidebar__search input::placeholder {
@@ -475,6 +548,10 @@ body[data-theme="dark"] .tree-node.active .node-actions button:hover {
 
    .sidebar__search {
       padding: 8px 10px;
+   }
+
+   .sidebar__acoes {
+      padding: 8px 10px 0;
    }
 
    .sidebar__tree {

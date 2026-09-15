@@ -689,6 +689,36 @@ Três mudanças:
 **Verificação**: screenshots com Chrome headless nas duas telas confirmaram o
 botão no admin e a árvore navegável sem ações de edição no `/view`.
 
+### C. Expandir / recolher a árvore selecionada na visualização pública (15/09/2026)
+
+- `sidebar/sidebar.html` + `sidebar.css`: no modo `SOMENTE_LEITURA`, barra
+  `#sidebar-acoes` acima da busca com **Expandir**, **Recolher**, **Ver daqui**
+  e **Centralizar**, todos agindo no item selecionado. As linhas deixam de ter
+  botões próprios (e de reservar 118px para eles no hover). `atualizarBarra()`
+  desabilita o que não se aplica: sem seleção só expandir/recolher (árvore
+  inteira); folha só centralizar. O administrativo não muda.
+  Primeira versão tinha os dois botões soltos no cabeçalho do
+  `view/index.html`; o usuário pediu tudo junto na árvore, e o cabeçalho voltou
+  ao original.
+- `tree.html`: `expandirArvoreSelecionada()` / `recolherArvoreSelecionada()`.
+  Alvo = card selecionado, se estiver no desenho; senão a raiz do desenho
+  (organograma inteiro ou o escopo de "ver a partir daqui"). Expandir marca
+  `_expanded` em toda a subárvore, folhas inclusive (a lib abre o caminho até
+  cada nó marcado). Recolher limpa a flag na subárvore e a repõe só no próprio
+  card, para ele continuar à vista; se o alvo é a raiz, usa
+  `initialExpandLevel(0)`, como o `collapseAll` da lib.
+- `sidebar/sidebar.html`: `setSidebarExpansao(id, expandir)` faz o mesmo na
+  árvore lateral.
+
+**Verificação**: Playwright no `/view` com os 398 cards reais — sem seleção
+abre 398/398 e recolhe até a raiz; com seleção abre só a subárvore (49/49) e
+recolher volta ao estado anterior; nó profundo recolhe só o próprio ramo;
+escopo expande/recolhe o recorte; árvore lateral acompanha em todos os casos.
+Barra: escondida no admin (linhas mantêm os botões); no `/view` fica acima da
+busca, cabeçalho sem botões; estados habilitados conferidos sem seleção, com
+item com filhos, com folha e após clique num card; "Ver daqui" abre as 49
+caixas de #281; rótulos inteiros na largura mínima do painel (260px).
+
 ---
 
 ## 📋 Resumo para o próximo agente

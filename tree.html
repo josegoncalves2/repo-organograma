@@ -2764,6 +2764,87 @@
     }
    }
 
+   // Barra de ações da árvore lateral na visualização pública. "Árvore
+   // selecionada" é o card clicado (no gráfico ou na árvore lateral) com tudo
+   // o que está abaixo dele. Sem card
+   // selecionado dentro do desenho, vale a raiz do que está desenhado: o
+   // organograma inteiro ou a unidade aberta em "ver a partir daqui".
+   function raizDaArvoreSelecionada() {
+    const state = chart.getChartState();
+    const ids = new Set(state.data.map((d) => String(state.nodeId(d))));
+    const selecionado = getSelectedNodeId();
+    if (selecionado && ids.has(String(selecionado))) return String(selecionado);
+    const raiz = state.data.find((d) => !ids.has(String(state.parentNodeId(d) || "")));
+    return raiz ? String(state.nodeId(raiz)) : null;
+   }
+
+   // Linhas do gráfico que pertencem à subárvore de id, com ele primeiro.
+   function subarvoreNoGrafico(id) {
+    const state = chart.getChartState();
+    const filhosDe = new Map();
+    state.data.forEach((d) => {
+     const pai = String(state.parentNodeId(d) || "");
+     if (!filhosDe.has(pai)) filhosDe.set(pai, []);
+     filhosDe.get(pai).push(d);
+    });
+    const vistos = new Set();
+    const dentro = [];
+    const fila = state.data.filter((d) => String(state.nodeId(d)) === String(id));
+    while (fila.length) {
+     const atual = fila.shift();
+     const idAtual = String(state.nodeId(atual));
+     if (vistos.has(idAtual)) continue;
+     vistos.add(idAtual);
+     dentro.push(atual);
+     (filhosDe.get(idAtual) || []).forEach((filho) => fila.push(filho));
+    }
+    return dentro;
+   }
+
+   function expandirArvoreSelecionada() {
+    if (!chart) return setStatus("Carregue dados antes de expandir", true);
+    const alvo = raizDaArvoreSelecionada();
+    if (!alvo) return;
+    // A lib abre o caminho até todo nó com _expanded. Marcando a subárvore
+    // inteira, folhas inclusive, ela abre até o último nível.
+    const nos = subarvoreNoGrafico(alvo);
+    nos.forEach((d) => (d._expanded = true));
+    chart.render();
+    concluirExpansao(alvo, true);
+    setStatus(`Expandido até o último nível: ${nodeLabel(alvo)} • ${nos.length} caixas`);
+   }
+
+   function recolherArvoreSelecionada() {
+    if (!chart) return setStatus("Carregue dados antes de recolher", true);
+    const alvo = raizDaArvoreSelecionada();
+    if (!alvo) return;
+    const nos = subarvoreNoGrafico(alvo);
+    nos.forEach((d) => (d._expanded = false));
+    const state = chart.getChartState();
+    const ehRaiz = !state.data.some((d) => String(state.nodeId(d)) === String(state.parentNodeId(nos[0]) || ""));
+    if (ehRaiz) {
+     // Mesmo efeito do collapseAll da lib: sem isto a raiz continua mostrando
+     // o primeiro nível.
+     chart.initialExpandLevel(0);
+    } else {
+     // _expanded no próprio card mantém o caminho até ele aberto (ele segue à
+     // vista); os filhos só abrem se algum deles tiver a flag.
+     nos[0]._expanded = true;
+    }
+    chart.render();
+    concluirExpansao(alvo, false);
+    setStatus(`Recolhidos todos os níveis de: ${nodeLabel(alvo)}`);
+   }
+
+   function concluirExpansao(alvo, expandir) {
+    fitLegivel(alvo);
+    afterRender();
+    capturarExpandidos();
+    salvarVisual();
+    const janela = janelaDoSidebar();
+    if (janela && janela.setSidebarExpansao) janela.setSidebarExpansao(alvo, expandir);
+   }
+
    function safeExportImg(full) {
     if (!chart) return setStatus("Carregue dados antes de exportar", true);
     chart.exportImg(full ? { full: true } : undefined);
