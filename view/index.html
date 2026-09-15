@@ -130,13 +130,24 @@
   <div class="kiosk-shell">
    <iframe class="kiosk-frame" id="kiosk-frame" title="Organograma em visualização" src="/?view=1"></iframe>
    <div class="kiosk-overlay" aria-hidden="true"></div>
-   <div class="kiosk-footer">
-     <button type="button" id="btn-sair">Sair da visualização</button>
-   </div>
   </div>
 
   <script>
    const frame = document.getElementById('kiosk-frame');
+
+   function aplicarSlugDaUrl() {
+    const slug = window.location.pathname.startsWith('/view/')
+     ? window.location.pathname.slice('/view/'.length)
+     : '';
+    try {
+     const inner = frame.contentWindow;
+     if (inner && typeof inner.aplicarSlugPublica === 'function') {
+      inner.aplicarSlugPublica(slug);
+     }
+    } catch (erro) {
+     console.warn('kiosk view:', erro);
+    }
+   }
 
    function desativarAcoes() {
      try {
@@ -200,13 +211,22 @@
      }
    }
 
-   document.getElementById('btn-sair').addEventListener('click', () => {
-     window.location.href = '/';
+   // Quando o iframe terminar de carregar os dados, ele envia uma
+   // mensagem para cá. Só aí aplicamos o slug da URL, garantindo
+   // que currentData já está populado e chart.render() já foi chamado.
+   window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'organograma:pronto') {
+     aplicarSlugDaUrl();
+    }
    });
 
    frame.addEventListener('load', () => {
-     setTimeout(desativarAcoes, 350);
-     setTimeout(desativarAcoes, 1200);
+    setTimeout(desativarAcoes, 350);
+    setTimeout(desativarAcoes, 1200);
+   });
+
+   window.addEventListener('popstate', () => {
+    aplicarSlugDaUrl();
    });
   </script>
  </body>

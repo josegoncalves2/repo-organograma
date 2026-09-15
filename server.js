@@ -286,7 +286,8 @@ function estatico(req, res, rota) {
   const direta = rota === "/" ? "tree.html" : decodeURIComponent(rota).replace(/^\/+/, "");
   const normalizada = direta || "tree.html";
 
-  if (rota === "/view" || rota === "/view/") {
+  // Rotas de visualização pública: /view, /view/ e /view/<slug>
+  if (rota === "/view" || rota === "/view/" || rota.startsWith("/view/")) {
     const alvo = path.resolve(RAIZ, "view", "index.html");
     fs.stat(alvo, (erro, info) => {
       if (erro || !info.isFile()) {

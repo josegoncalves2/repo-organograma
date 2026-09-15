@@ -389,7 +389,7 @@
    const READ_ONLY_MODE = new URLSearchParams(window.location.search).get("view") === "1";
 
    var chart;
-   var currentDesign = "default";
+   var currentDesign = "t-base-claro";
    var currentData = [];
    var selectedNodeId = null;
    // Escopo do desenho: null = organograma inteiro; senao, o id da unidade que
@@ -2188,10 +2188,108 @@
     return match ? match[1] : null;
    }
 
+   function slugify(texto) {
+    return String(texto || "")
+     .normalize("NFD")
+     .replace(/[\u0300-\u036f]/g, "")
+     .toLowerCase()
+     .replace(/[^a-z0-9]+/g, "_")
+     .replace(/^_+|_+$/g, "");
+   }
+
+   function caminhoAteNo(id) {
+    const caminho = [];
+    let atual = currentData.find((r) => String(r.id) === String(id));
+    const visto = new Set();
+    while (atual && !visto.has(String(atual.id))) {
+     visto.add(String(atual.id));
+     caminho.unshift(atual);
+     const paiId = String(atual.parentId || "").trim();
+     if (!paiId) break;
+     atual = currentData.find((r) => String(r.id) === paiId);
+    }
+    return caminho;
+   }
+
+   // Enquanto a seleção vem da própria URL (carga ou voltar do navegador),
+   // gravar no histórico criaria uma entrada nova e quebraria o "voltar".
+   var aplicandoSlug = false;
+
+   function atualizarUrlPublica(id) {
+    if (!READ_ONLY_MODE || aplicandoSlug) return;
+    try {
+     const parentWindow = window.parent !== window ? window.parent : window;
+     if (!parentWindow.history) return;
+     if (id === null || id === undefined) {
+      const targetUrl = "/view/";
+      if (parentWindow.location.pathname !== targetUrl) {
+       parentWindow.history.pushState({ slug: "" }, "", targetUrl);
+      }
+      return;
+     }
+     const caminho = caminhoAteNo(id);
+     const slug = caminho.map((n) => slugify(rotuloLegivel(n))).filter(Boolean).join("/");
+     const novaUrl = `/view/${slug}`;
+     if (parentWindow.location.pathname !== novaUrl) {
+      parentWindow.history.pushState({ id: String(id), slug }, "", novaUrl);
+     }
+    } catch (erro) {}
+   }
+
+   function aplicarSlugPublica(slug) {
+    if (!READ_ONLY_MODE) return;
+    if (!currentData.length) return;
+    if (!slug) {
+     selectNode(null);
+     return;
+    }
+    const partes = slug.split("/").filter(Boolean);
+    if (!partes.length) {
+     selectNode(null);
+     return;
+    }
+    let no = null;
+    for (const row of currentData) {
+     const caminho = caminhoAteNo(row.id);
+     const caminhoSlugs = caminho.map((n) => slugify(rotuloLegivel(n))).filter(Boolean).join("/");
+     if (caminhoSlugs === slug) {
+      no = row;
+      break;
+     }
+    }
+    aplicandoSlug = true;
+    try {
+     selectNode(no ? no.id : null);
+    } finally {
+     aplicandoSlug = false;
+    }
+   }
+
+   // Na visualização pública a URL decide o desenho: o card selecionado vira o
+   // "Ver daqui" (unidade com o que está abaixo dela; pessoa, a unidade dela).
+   function mostrarParteDoCard(id) {
+    if (!currentData.length) return;
+    const raiz = rootId();
+    const linhas = linhasEstruturais(false);
+    let escopo = null;
+    if (id !== null && String(id) !== String(raiz)) {
+     const temFilhos = linhas.some((r) => String(r.parentId || "").trim() === String(id));
+     const row = linhas.find((r) => String(r.id) === String(id));
+     escopo = temFilhos ? String(id) : (row && String(row.parentId || "").trim()) || null;
+     if (escopo === String(raiz)) escopo = null;
+    }
+    if (escopo === escopoId) return;
+    aplicarEscopo(escopo);
+   }
+
+   window.aplicarSlugPublica = aplicarSlugPublica;
+
    function selectNode(id) {
     selectedNodeId = id === null || id === undefined ? null : String(id);
     applySelectionStyle();
     enviarSelecaoAoSidebar();
+    atualizarUrlPublica(selectedNodeId);
+    if (READ_ONLY_MODE) mostrarParteDoCard(selectedNodeId);
    }
 
    // Abaixo deste zoom o nome e o cargo no card viram borrão. Quando a árvore
@@ -2443,6 +2541,9 @@
    }
 
    function salvarVisual() {
+    // Mesmo localStorage do editor: o recorte que a URL pública aplica não pode
+    // abrir a tela administrativa recortada.
+    if (READ_ONLY_MODE) return;
     try {
      localStorage.setItem(
       CHAVE_VISUAL,
@@ -2469,7 +2570,7 @@
     if (visual.modo === "dark" || visual.modo === "light") appThemeMode = visual.modo;
     if (Array.isArray(visual.expandidos)) expandidos = new Set(visual.expandidos.map(String));
     if (visual.selecionado) selectedNodeId = String(visual.selecionado);
-    if (visual.escopo) escopoId = String(visual.escopo);
+    if (visual.escopo && !READ_ONLY_MODE) escopoId = String(visual.escopo);
    }
 
    var versaoServidor = null;
@@ -2577,6 +2678,12 @@
     renderDesign();
     afterRender();
     setStatus(mensagem);
+    // Notifica o pai que os dados estão prontos para deep-link
+    try {
+     if (window.parent !== window) {
+      window.parent.postMessage({ type: 'organograma:pronto' }, '*');
+     }
+    } catch (erro) {}
    }
 
    (async () => {
